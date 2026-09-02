@@ -1,0 +1,8 @@
+{
+  "name": "arrera-dock",
+  "description": "Dock de la distribution Arrera Blue",
+  "uuid": "dock@linux.arrera-software.fr",
+  "shell-version": [
+    "50"
+  ]
+}
