@@ -70,7 +70,7 @@ export default class ArreraDockExtension extends Extension {
         // reserve the exact dock height at the bottom, perfectly preserving the default GNOME
         // workspace card size, centered positioning, and comfortable bottom margin.
         nativeDash.get_preferred_height = (_forWidth) => {
-            const dockHeight = this._dock ? this._dock.getPreferredHeight() : 68;
+            const dockHeight = this._dock ? this._dock.getPreferredHeight() : 72;
             return [dockHeight, dockHeight];
         };
 

@@ -20,8 +20,8 @@ import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as OverviewControls from 'resource:///org/gnome/shell/ui/overviewControls.js';
 
-const DEFAULT_ICON_SIZE = 48;
-const DOCK_HEIGHT = 68;
+const DEFAULT_ICON_SIZE = 56;
+const DOCK_HEIGHT = 72;
 
 /**
  * DockAppIcon represents an individual application launcher inside Arrera Dock.
@@ -233,7 +233,7 @@ class ShowAppsButton extends St.Button {
 
         this._icon = new St.Icon({
             icon_name: 'view-app-grid-symbolic',
-            icon_size: Math.round(iconSize * 0.65),
+            icon_size: iconSize,
             style_class: 'show-apps-icon',
         });
         this.set_child(this._icon);
@@ -392,7 +392,7 @@ class ArreraDock extends St.Widget {
         this._dockPill = new St.BoxLayout({
             style_class: 'arrera-dock',
             x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.END,
             reactive: true,
         });
         this._dockPill._delegate = this;

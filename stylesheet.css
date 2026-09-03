@@ -11,14 +11,14 @@
     background-color: transparent;
 }
 
-/* Floating dock pill */
+/* Dock pill resting flush on screen edge */
 .arrera-dock {
     background-color: rgba(15, 23, 42, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 26px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    padding: 6px 12px;
-    margin-bottom: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    padding: 4px 12px;
+    margin-bottom: 0;
     spacing: 6px;
 }
 
@@ -65,14 +65,14 @@
 /* Separator between favorites, running apps, and show apps button */
 .dock-separator {
     width: 1px;
-    height: 28px;
+    height: 32px;
     background-color: rgba(255, 255, 255, 0.18);
     margin: 4px 6px;
 }
 
 /* Show applications launcher button */
 .show-apps-button {
-    padding: 4px 8px;
+    padding: 4px;
     border-radius: 14px;
     color: #e2e8f0;
     transition-duration: 180ms;
