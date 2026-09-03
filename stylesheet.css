@@ -101,3 +101,106 @@
     padding: 5px 12px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
+
+/* ==========================================================================
+   macOS 26 Style Floating Applications Launcher Panel
+   ========================================================================== */
+
+/* Fullscreen transparent backdrop catching dismiss clicks */
+.mac-app-launcher-root {
+    background-color: rgba(0, 0, 0, 0.28);
+}
+
+/* Floating glassmorphic acrylic window */
+.mac-app-launcher-window {
+    background-color: rgba(22, 25, 33, 0.90);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 26px;
+    box-shadow: 0 28px 64px rgba(0, 0, 0, 0.65);
+    padding: 18px 24px;
+}
+
+/* Header bar */
+.mac-launcher-header {
+    spacing: 12px;
+    margin-bottom: 20px;
+}
+
+.mac-launcher-title-icon {
+    color: #388bfd;
+    margin-right: 4px;
+}
+
+/* Search input entry */
+.mac-launcher-search-entry {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 6px 14px;
+    color: #ffffff;
+    font-size: 11pt;
+    font-weight: 500;
+    caret-color: #388bfd;
+}
+
+.mac-launcher-search-entry:focus {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(56, 139, 253, 0.7);
+    box-shadow: 0 0 0 2px rgba(56, 139, 253, 0.25);
+}
+
+/* Header close button */
+.mac-launcher-close-btn {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 5px;
+    color: #94a3b8;
+    transition-duration: 150ms;
+}
+
+.mac-launcher-close-btn:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}
+
+/* 7-column scrollable grid */
+.mac-launcher-scroll {
+    padding: 2px;
+}
+
+.mac-launcher-grid {
+    padding: 4px 2px;
+    spacing: 16px;
+}
+
+/* Individual application card item */
+.mac-app-item {
+    padding: 8px 4px;
+    border-radius: 14px;
+    transition-duration: 150ms;
+}
+
+.mac-app-item:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.mac-app-item:active {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.mac-app-item-box {
+    spacing: 6px;
+}
+
+.mac-app-icon-bin {
+    margin-bottom: 2px;
+}
+
+.mac-app-label {
+    color: #f1f5f9;
+    font-size: 9pt;
+    font-weight: 500;
+    text-align: center;
+}

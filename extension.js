@@ -13,10 +13,13 @@ import * as Workspace from 'resource:///org/gnome/shell/ui/workspace.js';
 import * as WorkspaceThumbnail from 'resource:///org/gnome/shell/ui/workspaceThumbnail.js';
 import Graphene from 'gi://Graphene';
 import { ArreraDock } from './dock.js';
+import { AppLaucher } from './appLauncher.js';
 
 export default class ArreraDockExtension extends Extension {
     enable() {
+        this._appLauncher = new AppLaucher(this);
         this._dock = new ArreraDock(this);
+        this._dock.bindAppLauncher(this._appLauncher);
 
         // Position and add dock as top chrome
         // affectsStruts: true ensures desktop windows maximize above the dock
@@ -44,6 +47,18 @@ export default class ArreraDockExtension extends Extension {
 
         // Always display workspace switcher / thumbnails bar in Activities (even with <= 2 workspaces)
         this._patchThumbnailsBox();
+    }
+
+    get appLauncher() {
+        return this._appLauncher;
+    }
+
+    toggleAppLauncher() {
+        if (Main.overview.visible)
+            Main.overview.hide();
+
+        if (this._appLauncher)
+            this._appLauncher.toggle();
     }
 
     _updateDockPosition() {
@@ -172,8 +187,8 @@ export default class ArreraDockExtension extends Extension {
                 // Top-left "Activités" button / hot corner opens WINDOW_PICKER
                 Main.overview.show(OverviewControls.ControlsState.WINDOW_PICKER);
             } else {
-                // Super key (Windows key) shortcut opens the application grid directly
-                Main.overview.show(OverviewControls.ControlsState.APP_GRID);
+                // Super key (Windows key) shortcut opens the macOS Applications launcher
+                this.toggleAppLauncher();
             }
         };
     }
@@ -243,6 +258,12 @@ export default class ArreraDockExtension extends Extension {
 
         // Restore native dash
         this._restoreNativeDash();
+
+        // Destroy macOS app launcher
+        if (this._appLauncher) {
+            this._appLauncher.destroy();
+            this._appLauncher = null;
+        }
 
         // Remove dock from chrome and destroy
         if (this._dock) {

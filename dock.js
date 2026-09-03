@@ -237,7 +237,7 @@ class DockAppIcon extends Dash.DashIcon {
  */
 export const ShowAppsButton = GObject.registerClass(
 class ShowAppsButton extends St.Button {
-    _init(iconSize = DEFAULT_ICON_SIZE) {
+    _init(dock, iconSize = DEFAULT_ICON_SIZE) {
         super._init({
             style_class: 'dock-item show-apps-button',
             reactive: true,
@@ -247,6 +247,7 @@ class ShowAppsButton extends St.Button {
             y_align: Clutter.ActorAlign.CENTER,
         });
 
+        this._dock = dock;
         this._icon = new St.Icon({
             icon_name: 'view-app-grid-symbolic',
             icon_size: iconSize,
@@ -267,28 +268,7 @@ class ShowAppsButton extends St.Button {
 
         this.connect('destroy', () => {
             this._cleanupTooltip();
-            Main.overview.disconnectObject(this);
-            const controls = Main.overview._overview?._controls;
-            if (controls?._stateAdjustment)
-                controls._stateAdjustment.disconnectObject(this);
         });
-
-        // Sync with overview state
-        Main.overview.connectObject(
-            'showing', () => this._updateState(),
-            'hiding', () => this._updateState(),
-            this
-        );
-
-        const controls = Main.overview._overview?._controls;
-        if (controls?._stateAdjustment) {
-            controls._stateAdjustment.connectObject(
-                'notify::value', () => this._updateState(),
-                this
-            );
-        }
-
-        this._updateState();
     }
 
     _cleanupTooltip() {
@@ -308,30 +288,7 @@ class ShowAppsButton extends St.Button {
 
     _onClicked() {
         this._hideTooltip();
-        const controls = Main.overview._overview?._controls;
-        if (Main.overview.visible) {
-            if (controls && Math.round(controls._stateAdjustment.value) === OverviewControls.ControlsState.APP_GRID) {
-                Main.overview.hide();
-            } else if (controls) {
-                controls._stateAdjustment.ease(OverviewControls.ControlsState.APP_GRID);
-            } else {
-                Main.overview.hide();
-            }
-        } else {
-            Main.overview.show(OverviewControls.ControlsState.APP_GRID);
-        }
-    }
-
-    _updateState() {
-        const controls = Main.overview._overview?._controls;
-        const isAppGrid = Main.overview.visible &&
-            controls &&
-            Math.round(controls._stateAdjustment.value) === OverviewControls.ControlsState.APP_GRID;
-
-        if (isAppGrid)
-            this.add_style_pseudo_class('checked');
-        else
-            this.remove_style_pseudo_class('checked');
+        this._dock.toggleAppLauncher();
     }
 
     _showTooltip() {
@@ -465,7 +422,7 @@ class ArreraDock extends St.Widget {
         this._dockPill.add_child(this._appsSeparator);
 
         // Show Apps Button
-        this._showAppsButton = new ShowAppsButton(this._iconSize);
+        this._showAppsButton = new ShowAppsButton(this, this._iconSize);
         this._dockPill.add_child(this._showAppsButton);
 
         // Deferred work to coalesce redisplay updates
@@ -656,6 +613,25 @@ class ArreraDock extends St.Widget {
             this._redisplay();
     }
 
+    bindAppLauncher(launcher) {
+        if (!launcher || !this._showAppsButton)
+            return;
+
+        launcher.connectObject(
+            'opened', () => {
+                this._showAppsButton.add_style_pseudo_class('checked');
+            },
+            'closed', () => {
+                this._showAppsButton.remove_style_pseudo_class('checked');
+            },
+            this
+        );
+    }
+
+    toggleAppLauncher() {
+        this._extension?.toggleAppLauncher?.();
+    }
+
     getPreferredHeight() {
         return DOCK_HEIGHT;
     }
@@ -775,6 +751,9 @@ class ArreraDock extends St.Widget {
 
     destroy() {
         this._resetWaveMagnification();
+
+        if (this._extension?.appLauncher)
+            this._extension.appLauncher.disconnectObject(this);
 
         Main.overview.disconnectObject(this);
         const controls = Main.overview._overview?._controls;
