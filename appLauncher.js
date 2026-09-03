@@ -45,6 +45,7 @@ class MacAppItem extends St.Button {
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
             style_class: 'mac-app-item-box',
+            reactive: false,
         });
         this.set_child(container);
 
@@ -55,6 +56,7 @@ class MacAppItem extends St.Button {
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
             style_class: 'mac-app-icon-bin',
+            reactive: false,
         });
         container.add_child(iconBin);
 
@@ -63,16 +65,36 @@ class MacAppItem extends St.Button {
             text: app.get_name(),
             style_class: 'mac-app-label',
             x_align: Clutter.ActorAlign.CENTER,
+            reactive: false,
         });
         label.clutter_text.set_line_wrap(true);
         label.clutter_text.set_ellipsize(Pango.EllipsizeMode.END);
         label.clutter_text.set_max_length(18);
         container.add_child(label);
 
-        this.connect('clicked', () => {
-            this._app.activate();
-            this._launcher.close();
-        });
+        this.connect('clicked', () => this._activate());
+    }
+
+    vfunc_clicked(_button) {
+        this._activate();
+    }
+
+    _activate() {
+        this._launcher.close();
+        try {
+            if (this._app.can_open_new_window() && this._app.state === Shell.AppState.RUNNING) {
+                this._app.open_new_window(-1);
+            } else {
+                this._app.activate();
+            }
+        } catch (e) {
+            console.error(`[ArreraDock] Error activating app: ${e}`);
+            try {
+                this._app.get_app_info()?.launch([], null);
+            } catch (e2) {
+                console.error(`[ArreraDock] Fallback launch error: ${e2}`);
+            }
+        }
     }
 
     get app() {
@@ -109,9 +131,12 @@ export const AppLaucher = GObject.registerClass({
             x_expand: true,
             y_expand: true,
         });
-        this._backdrop.connect('button-press-event', () => {
-            this.close();
-            return Clutter.EVENT_STOP;
+        this._backdrop.connect('button-press-event', (_actor, event) => {
+            if (event.get_source() === this._backdrop) {
+                this.close();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
         });
         this.add_child(this._backdrop);
 
@@ -125,8 +150,6 @@ export const AppLaucher = GObject.registerClass({
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._window.set_pivot_point(0.5, 0.5);
-        // Prevent clicks inside the window from bubbling to the backdrop
-        this._window.connect('button-press-event', () => Clutter.EVENT_STOP);
         this.add_child(this._window);
 
         this._buildHeader();
@@ -206,11 +229,36 @@ export const AppLaucher = GObject.registerClass({
         this._scrollView = new St.ScrollView({
             style_class: 'mac-launcher-scroll',
             overlay_scrollbars: true,
+            enable_mouse_scrolling: true,
             hscrollbar_policy: St.PolicyType.NEVER,
             vscrollbar_policy: St.PolicyType.AUTOMATIC,
             x_expand: true,
             y_expand: true,
         });
+
+        this._scrollView.connect('scroll-event', (_actor, event) => {
+            const adj = this._scrollView.vadjustment;
+            if (!adj)
+                return Clutter.EVENT_PROPAGATE;
+
+            const direction = event.get_scroll_direction();
+            const step = adj.step_increment > 0 ? adj.step_increment : 50;
+
+            if (direction === Clutter.ScrollDirection.UP) {
+                adj.value = Math.max(adj.lower, adj.value - step);
+                return Clutter.EVENT_STOP;
+            } else if (direction === Clutter.ScrollDirection.DOWN) {
+                adj.value = Math.min(adj.upper - adj.page_size, adj.value + step);
+                return Clutter.EVENT_STOP;
+            } else if (direction === Clutter.ScrollDirection.SMOOTH) {
+                const [, dy] = event.get_scroll_delta();
+                const target = adj.value + dy * step;
+                adj.value = Math.max(adj.lower, Math.min(adj.upper - adj.page_size, target));
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
         this._window.add_child(this._scrollView);
 
         this._gridBox = new St.BoxLayout({
@@ -318,8 +366,8 @@ export const AppLaucher = GObject.registerClass({
         if (adj)
             adj.value = 0;
 
-        // Modal grab
-        this._grab = Main.pushModal(this);
+        // Modal grab with ActionMode.ALL to allow seamless application activation
+        this._grab = Main.pushModal(this, { actionMode: Shell.ActionMode.ALL });
 
         this.opacity = 0;
         this.visible = true;
