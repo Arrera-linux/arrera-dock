@@ -8,6 +8,7 @@
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as OverviewControls from 'resource:///org/gnome/shell/ui/overviewControls.js';
 import * as Workspace from 'resource:///org/gnome/shell/ui/workspace.js';
 import Graphene from 'gi://Graphene';
 import { ArreraDock } from './dock.js';
@@ -36,6 +37,9 @@ export default class ArreraDockExtension extends Extension {
 
         // Ensure the wallpaper is displayed in its entirety in the Activities overview
         this._patchWorkspaceBackground();
+
+        // Configure Super key shortcut to open the application grid directly
+        this._patchOverviewToggle();
     }
 
     _updateDockPosition() {
@@ -134,7 +138,58 @@ export default class ArreraDockExtension extends Extension {
             controls.queue_relayout();
     }
 
+    _patchOverviewToggle() {
+        let cornerOrButtonClicked = false;
+        const origShouldToggle = Main.overview.shouldToggleByCornerOrButton.bind(Main.overview);
+        this._origShouldToggle = origShouldToggle;
+        Main.overview.shouldToggleByCornerOrButton = () => {
+            const allowed = origShouldToggle();
+            if (allowed)
+                cornerOrButtonClicked = true;
+            return allowed;
+        };
+
+        const origToggle = Main.overview.toggle.bind(Main.overview);
+        this._origOverviewToggle = origToggle;
+
+        Main.overview.toggle = () => {
+            if (Main.overview.isDummy)
+                return;
+
+            const fromCornerOrButton = cornerOrButtonClicked;
+            cornerOrButtonClicked = false;
+
+            if (Main.overview.visible) {
+                Main.overview.hide();
+                return;
+            }
+
+            if (fromCornerOrButton) {
+                // Top-left "Activités" button / hot corner opens WINDOW_PICKER
+                Main.overview.show(OverviewControls.ControlsState.WINDOW_PICKER);
+            } else {
+                // Super key (Windows key) shortcut opens the application grid directly
+                Main.overview.show(OverviewControls.ControlsState.APP_GRID);
+            }
+        };
+    }
+
+    _restoreOverviewToggle() {
+        if (this._origShouldToggle) {
+            Main.overview.shouldToggleByCornerOrButton = this._origShouldToggle;
+            this._origShouldToggle = null;
+        }
+
+        if (this._origOverviewToggle) {
+            Main.overview.toggle = this._origOverviewToggle;
+            this._origOverviewToggle = null;
+        }
+    }
+
     disable() {
+        // Restore overview toggle shortcut
+        this._restoreOverviewToggle();
+
         // Restore workspace background and layout patches
         this._restoreWorkspaceBackground();
 
