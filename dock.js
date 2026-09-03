@@ -20,8 +20,11 @@ import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as OverviewControls from 'resource:///org/gnome/shell/ui/overviewControls.js';
 
-const DEFAULT_ICON_SIZE = 56;
-const DOCK_HEIGHT = 72;
+const DEFAULT_ICON_SIZE = 36;
+const DOCK_HEIGHT = 56;
+const WAVE_MAX_SCALE = 2.1;
+const WAVE_RADIUS = 165;
+const WAVE_MAX_SHIFT = 28;
 
 /**
  * DockAppIcon represents an individual application launcher inside Arrera Dock.
@@ -36,6 +39,7 @@ class DockAppIcon extends Dash.DashIcon {
         this.icon.setIconSize(iconSize);
         this.label_actor = null;
         this.add_style_class_name('dock-app-icon');
+        this.set_pivot_point(0.5, 1.0);
 
         this._tooltip = null;
 
@@ -103,6 +107,18 @@ class DockAppIcon extends Dash.DashIcon {
             duration: 150,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
         });
+    }
+
+    updateTooltipPosition() {
+        if (!this._tooltip || !this._tooltip.visible)
+            return;
+
+        const [stageX, stageY] = this.get_transformed_position();
+        const [w] = this.get_transformed_size();
+        const [tw, th] = this._tooltip.get_preferred_size();
+        const x = Math.round(stageX + (w - tw) / 2);
+        const y = Math.round(stageY - th - 8);
+        this._tooltip.set_position(x, y);
     }
 
     _hideTooltip() {
@@ -237,6 +253,7 @@ class ShowAppsButton extends St.Button {
             style_class: 'show-apps-icon',
         });
         this.set_child(this._icon);
+        this.set_pivot_point(0.5, 1.0);
 
         this._tooltip = null;
 
@@ -349,6 +366,18 @@ class ShowAppsButton extends St.Button {
         });
     }
 
+    updateTooltipPosition() {
+        if (!this._tooltip || !this._tooltip.visible)
+            return;
+
+        const [stageX, stageY] = this.get_transformed_position();
+        const [w] = this.get_transformed_size();
+        const [tw, th] = this._tooltip.get_preferred_size();
+        const x = Math.round(stageX + (w - tw) / 2);
+        const y = Math.round(stageY - th - 8);
+        this._tooltip.set_position(x, y);
+    }
+
     _hideTooltip() {
         if (!this._tooltip)
             return;
@@ -394,9 +423,30 @@ class ArreraDock extends St.Widget {
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.END,
             reactive: true,
+            track_hover: true,
         });
         this._dockPill._delegate = this;
         this.add_child(this._dockPill);
+
+        this._dockPill.connect('motion-event', (_actor, event) => {
+            const [stageX] = event.get_coords();
+            this._applyWaveMagnification(stageX);
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this._dockPill.connect('leave-event', (_actor, event) => {
+            const related = event.get_related();
+            if (related && this._dockPill.contains(related))
+                return Clutter.EVENT_PROPAGATE;
+
+            this._resetWaveMagnification();
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this._dockPill.connect('notify::hover', () => {
+            if (!this._dockPill.hover)
+                this._resetWaveMagnification();
+        });
 
         // Icons box (favorites and running apps)
         this._iconsBox = new St.BoxLayout({
@@ -483,6 +533,7 @@ class ArreraDock extends St.Widget {
         this._dockPill.opacity = 255;
         this._dockPill.translation_y = 0;
         this._dockPill.reactive = true;
+        this._resetWaveMagnification();
     }
 
     _syncWithOverview() {
@@ -536,6 +587,66 @@ class ArreraDock extends St.Widget {
             icon._hideTooltip?.();
         }
         this._showAppsButton?._hideTooltip?.();
+    }
+
+    _getAllDockItems() {
+        const items = [];
+        for (const child of this._iconsBox.get_children()) {
+            if (child instanceof DockAppIcon)
+                items.push(child);
+        }
+        if (this._showAppsButton)
+            items.push(this._showAppsButton);
+        return items;
+    }
+
+    _applyWaveMagnification(stageX) {
+        const items = this._getAllDockItems();
+        if (items.length === 0)
+            return;
+
+        for (const item of items) {
+            item.remove_all_transitions();
+
+            const [itemX] = item.get_transformed_position();
+            const [itemW] = item.get_transformed_size();
+            const itemBaseWidth = item.width || itemW;
+            const itemCenterX = itemX + itemBaseWidth / 2 - (item.translation_x || 0);
+
+            const dx = Math.abs(stageX - itemCenterX);
+
+            if (dx < WAVE_RADIUS) {
+                const factor = 0.5 * (1 + Math.cos((Math.PI * dx) / WAVE_RADIUS));
+                const scale = 1.0 + (WAVE_MAX_SCALE - 1.0) * factor;
+
+                const direction = itemCenterX >= stageX ? 1 : -1;
+                const shiftFactor = Math.sin((Math.PI * dx) / WAVE_RADIUS);
+                const shiftX = direction * WAVE_MAX_SHIFT * shiftFactor;
+
+                item.set_pivot_point(0.5, 1.0);
+                item.set_scale(scale, scale);
+                item.translation_x = Math.round(shiftX);
+            } else {
+                item.set_scale(1.0, 1.0);
+                item.translation_x = 0;
+            }
+
+            item.updateTooltipPosition?.();
+        }
+    }
+
+    _resetWaveMagnification() {
+        const items = this._getAllDockItems();
+        for (const item of items) {
+            item.ease({
+                scale_x: 1.0,
+                scale_y: 1.0,
+                translation_x: 0,
+                duration: 220,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+            item.updateTooltipPosition?.();
+        }
     }
 
     _queueRedisplay() {
@@ -663,6 +774,8 @@ class ArreraDock extends St.Widget {
     }
 
     destroy() {
+        this._resetWaveMagnification();
+
         Main.overview.disconnectObject(this);
         const controls = Main.overview._overview?._controls;
         if (controls?._stateAdjustment)

@@ -15,22 +15,22 @@
 .arrera-dock {
     background-color: rgba(15, 23, 42, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 26px;
+    border-radius: 20px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-    padding: 4px 12px;
+    padding: 3px 12px;
     margin-bottom: 0;
-    spacing: 6px;
+    spacing: 8px;
 }
 
 /* Container for application icons */
 .arrera-dock-icons {
-    spacing: 6px;
+    spacing: 8px;
 }
 
 /* Individual application icon button */
 .dock-app-icon {
-    padding: 4px;
-    border-radius: 14px;
+    padding: 3px;
+    border-radius: 10px;
     transition-duration: 180ms;
 }
 
@@ -45,35 +45,35 @@
 
 /* Running indicator dot (underneath icon) */
 .dock-app-icon .app-grid-running-dot {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
     background-color: rgba(255, 255, 255, 0.7);
-    border-radius: 2.5px;
-    margin-bottom: 2px;
+    border-radius: 2px;
+    margin-bottom: 1px;
     transition-duration: 200ms;
 }
 
 /* Active/focused running indicator: Arrera Blue glowing pill */
 .dock-app-icon .app-grid-running-dot.focused {
-    width: 16px;
-    height: 4px;
+    width: 14px;
+    height: 3px;
     background-color: #388bfd;
-    border-radius: 2px;
+    border-radius: 1.5px;
     box-shadow: 0 0 8px rgba(56, 139, 253, 0.9);
 }
 
 /* Separator between favorites, running apps, and show apps button */
 .dock-separator {
     width: 1px;
-    height: 32px;
+    height: 24px;
     background-color: rgba(255, 255, 255, 0.18);
-    margin: 4px 6px;
+    margin: 3px 6px;
 }
 
 /* Show applications launcher button */
 .show-apps-button {
-    padding: 4px;
-    border-radius: 14px;
+    padding: 3px;
+    border-radius: 10px;
     color: #e2e8f0;
     transition-duration: 180ms;
 }
