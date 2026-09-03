@@ -82,6 +82,9 @@ class DockAppIcon extends Dash.DashIcon {
                 style_class: 'dock-tooltip',
                 text: this.app.get_name(),
             });
+            this._tooltip.connect('destroy', () => {
+                this._tooltip = null;
+            });
             Main.layoutManager.addChrome(this._tooltip);
         }
 
@@ -322,6 +325,9 @@ class ShowAppsButton extends St.Button {
             this._tooltip = new St.Label({
                 style_class: 'dock-tooltip',
                 text: _('Applications'),
+            });
+            this._tooltip.connect('destroy', () => {
+                this._tooltip = null;
             });
             Main.layoutManager.addChrome(this._tooltip);
         }

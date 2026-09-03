@@ -10,6 +10,7 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as OverviewControls from 'resource:///org/gnome/shell/ui/overviewControls.js';
 import * as Workspace from 'resource:///org/gnome/shell/ui/workspace.js';
+import * as WorkspaceThumbnail from 'resource:///org/gnome/shell/ui/workspaceThumbnail.js';
 import Graphene from 'gi://Graphene';
 import { ArreraDock } from './dock.js';
 
@@ -40,6 +41,9 @@ export default class ArreraDockExtension extends Extension {
 
         // Configure Super key shortcut to open the application grid directly
         this._patchOverviewToggle();
+
+        // Always display workspace switcher / thumbnails bar in Activities (even with <= 2 workspaces)
+        this._patchThumbnailsBox();
     }
 
     _updateDockPosition() {
@@ -186,7 +190,51 @@ export default class ArreraDockExtension extends Extension {
         }
     }
 
+    _patchThumbnailsBox() {
+        if (!WorkspaceThumbnail?.ThumbnailsBox)
+            return;
+
+        const origUpdateShouldShow = WorkspaceThumbnail.ThumbnailsBox.prototype._updateShouldShow;
+        this._origUpdateShouldShow = origUpdateShouldShow;
+
+        // Force workspace thumbnails to always be visible in Activities ("h24")
+        WorkspaceThumbnail.ThumbnailsBox.prototype._updateShouldShow = function () {
+            const shouldShow = true;
+            if (this._shouldShow === shouldShow)
+                return;
+
+            this._shouldShow = shouldShow;
+            this.notify('should-show');
+        };
+
+        const controls = Main.overview._overview?._controls;
+        const thumbnailsBox = controls?._thumbnailsBox;
+        if (thumbnailsBox) {
+            thumbnailsBox._updateShouldShow();
+            controls._updateThumbnailsBox?.();
+            controls.layout_manager?.layout_changed();
+        }
+    }
+
+    _restoreThumbnailsBox() {
+        if (this._origUpdateShouldShow) {
+            WorkspaceThumbnail.ThumbnailsBox.prototype._updateShouldShow = this._origUpdateShouldShow;
+            this._origUpdateShouldShow = null;
+        }
+
+        const controls = Main.overview._overview?._controls;
+        const thumbnailsBox = controls?._thumbnailsBox;
+        if (thumbnailsBox) {
+            thumbnailsBox._updateShouldShow();
+            controls._updateThumbnailsBox?.();
+            controls.layout_manager?.layout_changed();
+        }
+    }
+
     disable() {
+        // Restore workspace thumbnails visibility logic
+        this._restoreThumbnailsBox();
+
         // Restore overview toggle shortcut
         this._restoreOverviewToggle();
 
