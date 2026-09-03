@@ -8,6 +8,8 @@
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as Workspace from 'resource:///org/gnome/shell/ui/workspace.js';
+import Graphene from 'gi://Graphene';
 import { ArreraDock } from './dock.js';
 
 export default class ArreraDockExtension extends Extension {
@@ -31,6 +33,9 @@ export default class ArreraDockExtension extends Extension {
 
         // Totally replace the native dash in the overview / application menu
         this._replaceNativeDash();
+
+        // Ensure the wallpaper is displayed in its entirety in the Activities overview
+        this._patchWorkspaceBackground();
     }
 
     _updateDockPosition() {
@@ -54,8 +59,8 @@ export default class ArreraDockExtension extends Extension {
         nativeDash.opacity = 0;
 
         // Override preferred height so GNOME Shell's overview controls (ControlsManagerLayout)
-        // reserve the exact dock height at the bottom for Arrera Dock, preventing any
-        // overlap with the application grid or workspace thumbnails.
+        // reserve the exact dock height at the bottom, perfectly preserving the default GNOME
+        // workspace card size, centered positioning, and comfortable bottom margin.
         nativeDash.get_preferred_height = (_forWidth) => {
             const dockHeight = this._dock ? this._dock.getPreferredHeight() : 68;
             return [dockHeight, dockHeight];
@@ -89,7 +94,50 @@ export default class ArreraDockExtension extends Extension {
             controls.queue_relayout();
     }
 
+    _patchWorkspaceBackground() {
+        if (!Workspace?.WorkspaceBackground)
+            return;
+
+        // Ensure full un-cropped wallpaper in the workspace thumbnail card
+        // by clipping to the full monitor dimensions instead of the reduced dock workarea
+        const origUpdateRoundedClipBounds = Workspace.WorkspaceBackground.prototype._updateRoundedClipBounds;
+        this._origUpdateRoundedClipBounds = origUpdateRoundedClipBounds;
+        Workspace.WorkspaceBackground.prototype._updateRoundedClipBounds = function () {
+            const monitor = Main.layoutManager.monitors[this._monitorIndex];
+            if (!monitor || !this._bgManager?.backgroundActor?.content) {
+                origUpdateRoundedClipBounds.call(this);
+                return;
+            }
+
+            const rect = new Graphene.Rect();
+            rect.origin.x = 0;
+            rect.origin.y = 0;
+            rect.size.width = monitor.width;
+            rect.size.height = monitor.height;
+
+            this._bgManager.backgroundActor.content.set_rounded_clip_bounds(rect);
+        };
+
+        const controls = Main.overview._overview?._controls;
+        if (controls)
+            controls.queue_relayout();
+    }
+
+    _restoreWorkspaceBackground() {
+        if (this._origUpdateRoundedClipBounds) {
+            Workspace.WorkspaceBackground.prototype._updateRoundedClipBounds = this._origUpdateRoundedClipBounds;
+            this._origUpdateRoundedClipBounds = null;
+        }
+
+        const controls = Main.overview._overview?._controls;
+        if (controls)
+            controls.queue_relayout();
+    }
+
     disable() {
+        // Restore workspace background and layout patches
+        this._restoreWorkspaceBackground();
+
         // Restore native dash
         this._restoreNativeDash();
 

@@ -59,10 +59,16 @@ class DockAppIcon extends Dash.DashIcon {
     }
 
     _cleanupTooltip() {
-        if (this._tooltip) {
+        if (!this._tooltip)
+            return;
+
+        try {
             this._tooltip.remove_all_transitions();
             Main.layoutManager.removeChrome(this._tooltip);
             this._tooltip.destroy();
+        } catch (_e) {
+            // Already destroyed or disposed by parent during shutdown
+        } finally {
             this._tooltip = null;
         }
     }
@@ -266,10 +272,16 @@ class ShowAppsButton extends St.Button {
     }
 
     _cleanupTooltip() {
-        if (this._tooltip) {
+        if (!this._tooltip)
+            return;
+
+        try {
             this._tooltip.remove_all_transitions();
             Main.layoutManager.removeChrome(this._tooltip);
             this._tooltip.destroy();
+        } catch (_e) {
+            // Already destroyed or disposed by parent during shutdown
+        } finally {
             this._tooltip = null;
         }
     }
@@ -427,7 +439,97 @@ class ArreraDock extends St.Widget {
             this
         );
 
+        this._hasConnectedAdjustment = false;
+        this._bindOverview();
+
         this._redisplay();
+    }
+
+    _bindOverview() {
+        Main.overview.connectObject(
+            'showing', () => this._syncWithOverview(),
+            'hiding', () => this._syncWithOverview(),
+            'hidden', () => this._onOverviewHidden(),
+            this
+        );
+
+        this._connectStateAdjustment();
+        this._syncWithOverview();
+    }
+
+    _connectStateAdjustment() {
+        if (this._hasConnectedAdjustment)
+            return;
+
+        const controls = Main.overview._overview?._controls;
+        if (controls?._stateAdjustment) {
+            controls._stateAdjustment.connectObject(
+                'notify::value', () => this._syncWithOverview(),
+                this
+            );
+            this._hasConnectedAdjustment = true;
+        }
+    }
+
+    _onOverviewHidden() {
+        this.show();
+        this._dockPill.remove_all_transitions();
+        this._dockPill.opacity = 255;
+        this._dockPill.translation_y = 0;
+        this._dockPill.reactive = true;
+    }
+
+    _syncWithOverview() {
+        this._connectStateAdjustment();
+
+        if (!Main.overview.visible) {
+            this._onOverviewHidden();
+            return;
+        }
+
+        const controls = Main.overview._overview?._controls;
+        const stateAdjustment = controls?._stateAdjustment;
+        if (!stateAdjustment) {
+            this._hideTooltips();
+            this.hide();
+            return;
+        }
+
+        const val = stateAdjustment.value;
+        const { initialState, finalState } = stateAdjustment.getStateTransitionParams();
+
+        let factor;
+        // Direct transition between Desktop (0) and App Grid (2): keep fully visible without flickering
+        if ((initialState === OverviewControls.ControlsState.HIDDEN && finalState === OverviewControls.ControlsState.APP_GRID) ||
+            (initialState === OverviewControls.ControlsState.APP_GRID && finalState === OverviewControls.ControlsState.HIDDEN)) {
+            factor = 1.0;
+        } else if (val <= 1.0) {
+            // Between Desktop (0) and Activities/Window Picker (1): fade out towards Activities
+            factor = Math.max(0, Math.min(1, 1.0 - val));
+        } else {
+            // Between Activities/Window Picker (1) and App Grid (2): fade in towards App Grid
+            factor = Math.max(0, Math.min(1, val - 1.0));
+        }
+
+        if (factor <= 0.01) {
+            this._hideTooltips();
+            this._dockPill.opacity = 0;
+            this._dockPill.translation_y = 30;
+            this._dockPill.reactive = false;
+            this.hide();
+        } else {
+            this.show();
+            this._dockPill.opacity = Math.round(255 * factor);
+            this._dockPill.translation_y = Math.round((1.0 - factor) * 30);
+            this._dockPill.reactive = factor >= 0.8;
+        }
+    }
+
+    _hideTooltips() {
+        for (const icon of this._appIcons.values()) {
+            icon._hideTooltip?.();
+        }
+        this._showAppsButton?._hideTooltip?.();
     }
 
     _queueRedisplay() {
@@ -555,6 +657,11 @@ class ArreraDock extends St.Widget {
     }
 
     destroy() {
+        Main.overview.disconnectObject(this);
+        const controls = Main.overview._overview?._controls;
+        if (controls?._stateAdjustment)
+            controls._stateAdjustment.disconnectObject(this);
+
         this._appFavorites.disconnectObject(this);
         this._appSystem.disconnectObject(this);
         global.display.disconnectObject(this);
