@@ -7,6 +7,7 @@
  */
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
@@ -452,6 +453,11 @@ class ArreraDock extends St.Widget {
             this
         );
 
+        // Synchronize with GNOME accent color settings (Material 3 Expressive)
+        this._interfaceSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.interface' });
+        this._interfaceSettings.connectObject('changed::accent-color', () => this._syncAccentColor(), this);
+        this._syncAccentColor();
+
         this._hasConnectedAdjustment = false;
         this._bindOverview();
 
@@ -617,6 +623,9 @@ class ArreraDock extends St.Widget {
         if (!launcher || !this._showAppsButton)
             return;
 
+        this._appLauncher = launcher;
+        this._syncAccentColor();
+
         launcher.connectObject(
             'opened', () => {
                 this._showAppsButton.add_style_pseudo_class('checked');
@@ -626,6 +635,23 @@ class ArreraDock extends St.Widget {
             },
             this
         );
+    }
+
+    _syncAccentColor() {
+        const colorName = this._interfaceSettings?.get_string('accent-color') || 'blue';
+        const allColors = ['blue', 'teal', 'green', 'yellow', 'orange', 'red', 'pink', 'purple', 'slate'];
+
+        for (const c of allColors) {
+            this.remove_style_class_name(`accent-${c}`);
+            this._dockPill?.remove_style_class_name(`accent-${c}`);
+            if (this._appLauncher)
+                this._appLauncher.remove_style_class_name(`accent-${c}`);
+        }
+
+        this.add_style_class_name(`accent-${colorName}`);
+        this._dockPill?.add_style_class_name(`accent-${colorName}`);
+        if (this._appLauncher)
+            this._appLauncher.add_style_class_name(`accent-${colorName}`);
     }
 
     toggleAppLauncher() {
@@ -773,6 +799,11 @@ class ArreraDock extends St.Widget {
         if (this._separator) {
             this._separator.destroy();
             this._separator = null;
+        }
+
+        if (this._interfaceSettings) {
+            this._interfaceSettings.disconnectObject(this);
+            this._interfaceSettings = null;
         }
 
         super.destroy();

@@ -8,6 +8,7 @@
  */
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
@@ -137,6 +138,24 @@ export const AppLaucher = GObject.registerClass({
         // Listen for installed applications changes
         this._appSystem = Shell.AppSystem.get_default();
         this._appSystem.connectObject('installed-changed', () => this._reloadApps(), this);
+
+        // Synchronize with GNOME accent color settings
+        this._interfaceSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.interface' });
+        this._interfaceSettings.connectObject('changed::accent-color', () => this._syncAccentColor(), this);
+        this._syncAccentColor();
+    }
+
+    _syncAccentColor() {
+        const colorName = this._interfaceSettings?.get_string('accent-color') || 'blue';
+        const allColors = ['blue', 'teal', 'green', 'yellow', 'orange', 'red', 'pink', 'purple', 'slate'];
+
+        for (const c of allColors) {
+            this.remove_style_class_name(`accent-${c}`);
+            this._window?.remove_style_class_name(`accent-${c}`);
+        }
+
+        this.add_style_class_name(`accent-${colorName}`);
+        this._window?.add_style_class_name(`accent-${colorName}`);
     }
 
     get isOpen() {
@@ -382,6 +401,10 @@ export const AppLaucher = GObject.registerClass({
 
     destroy() {
         this.close();
+        if (this._interfaceSettings) {
+            this._interfaceSettings.disconnectObject(this);
+            this._interfaceSettings = null;
+        }
         this._appSystem.disconnectObject(this);
         super.destroy();
     }
