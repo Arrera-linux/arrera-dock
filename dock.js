@@ -52,9 +52,25 @@ class DockAppIcon extends Dash.DashIcon {
             if (opened)
                 this._hideTooltip();
         });
+
+        this.connect('destroy', () => {
+            this._cleanupTooltip();
+        });
+    }
+
+    _cleanupTooltip() {
+        if (this._tooltip) {
+            this._tooltip.remove_all_transitions();
+            Main.layoutManager.removeChrome(this._tooltip);
+            this._tooltip.destroy();
+            this._tooltip = null;
+        }
     }
 
     _showTooltip() {
+        if (!this.get_stage() || !this.app)
+            return;
+
         if (!this._tooltip) {
             this._tooltip = new St.Label({
                 style_class: 'dock-tooltip',
@@ -123,20 +139,19 @@ class DockAppIcon extends Dash.DashIcon {
         }
 
         // App is already running: smart toggle / minimize / focus
-        const windows = this.app.get_windows();
+        const windows = this.app.get_windows() || [];
         const currentWorkspace = global.workspace_manager.get_active_workspace();
         const activeWindow = global.display.focus_window;
 
         if (windows.length > 0) {
             const hasFocusedWindow = activeWindow && windows.includes(activeWindow) &&
-                                     activeWindow.located_on_workspace(currentWorkspace);
+                                     (activeWindow.is_on_all_workspaces?.() || activeWindow.located_on_workspace(currentWorkspace));
 
             if (hasFocusedWindow) {
                 if (windows.length === 1) {
-                    // Toggle minimize if only 1 window
-                    activeWindow.minimize();
+                    if (activeWindow.can_minimize?.())
+                        activeWindow.minimize();
                 } else {
-                    // Cycle to next window for this app
                     const currentIdx = windows.indexOf(activeWindow);
                     const nextIdx = (currentIdx + 1) % windows.length;
                     const nextWin = windows[nextIdx];
@@ -145,8 +160,7 @@ class DockAppIcon extends Dash.DashIcon {
                     nextWin.activate(global.get_current_time());
                 }
             } else {
-                // Focus the app's window on current workspace or main window
-                const workspaceWindows = windows.filter(w => w.located_on_workspace(currentWorkspace));
+                const workspaceWindows = windows.filter(w => w.is_on_all_workspaces?.() || w.located_on_workspace(currentWorkspace));
                 const winToActivate = workspaceWindows[0] || windows[0];
                 if (winToActivate.minimized)
                     winToActivate.unminimize();
@@ -161,6 +175,9 @@ class DockAppIcon extends Dash.DashIcon {
     }
 
     updateActiveState(focusWindow) {
+        if (!this.app || !this._dot)
+            return;
+
         if (this.app.state === Shell.AppState.STOPPED) {
             this._dot.hide();
             this.remove_style_pseudo_class('running');
@@ -171,7 +188,7 @@ class DockAppIcon extends Dash.DashIcon {
         this._dot.show();
         this.add_style_pseudo_class('running');
 
-        const windows = this.app.get_windows();
+        const windows = this.app.get_windows() || [];
         const isFocused = focusWindow && windows.includes(focusWindow);
 
         if (isFocused) {
@@ -184,11 +201,7 @@ class DockAppIcon extends Dash.DashIcon {
     }
 
     destroy() {
-        if (this._tooltip) {
-            Main.layoutManager.removeChrome(this._tooltip);
-            this._tooltip.destroy();
-            this._tooltip = null;
-        }
+        this._cleanupTooltip();
         super.destroy();
     }
 });
@@ -226,6 +239,14 @@ class ShowAppsButton extends St.Button {
                 this._hideTooltip();
         });
 
+        this.connect('destroy', () => {
+            this._cleanupTooltip();
+            Main.overview.disconnectObject(this);
+            const controls = Main.overview._overview?._controls;
+            if (controls?._stateAdjustment)
+                controls._stateAdjustment.disconnectObject(this);
+        });
+
         // Sync with overview state
         Main.overview.connectObject(
             'showing', () => this._updateState(),
@@ -242,6 +263,15 @@ class ShowAppsButton extends St.Button {
         }
 
         this._updateState();
+    }
+
+    _cleanupTooltip() {
+        if (this._tooltip) {
+            this._tooltip.remove_all_transitions();
+            Main.layoutManager.removeChrome(this._tooltip);
+            this._tooltip.destroy();
+            this._tooltip = null;
+        }
     }
 
     _onClicked() {
@@ -273,6 +303,9 @@ class ShowAppsButton extends St.Button {
     }
 
     _showTooltip() {
+        if (!this.get_stage())
+            return;
+
         if (!this._tooltip) {
             this._tooltip = new St.Label({
                 style_class: 'dock-tooltip',
@@ -314,16 +347,7 @@ class ShowAppsButton extends St.Button {
     }
 
     destroy() {
-        if (this._tooltip) {
-            Main.layoutManager.removeChrome(this._tooltip);
-            this._tooltip.destroy();
-            this._tooltip = null;
-        }
-        Main.overview.disconnectObject(this);
-        const controls = Main.overview._overview?._controls;
-        if (controls?._stateAdjustment)
-            controls._stateAdjustment.disconnectObject(this);
-
+        this._cleanupTooltip();
         super.destroy();
     }
 });
@@ -343,6 +367,8 @@ class ArreraDock extends St.Widget {
 
         this._extension = extension;
         this._iconSize = DEFAULT_ICON_SIZE;
+        this._appIcons = new Map();
+        this._separator = null;
 
         // Floating pill container
         this._dockPill = new St.BoxLayout({
@@ -360,6 +386,7 @@ class ArreraDock extends St.Widget {
             y_align: Clutter.ActorAlign.CENTER,
             reactive: true,
         });
+        this._iconsBox._delegate = this;
         this._dockPill.add_child(this._iconsBox);
 
         // Separator between apps and Show Apps launcher
@@ -373,14 +400,20 @@ class ArreraDock extends St.Widget {
         this._showAppsButton = new ShowAppsButton(this._iconSize);
         this._dockPill.add_child(this._showAppsButton);
 
+        // Deferred work to coalesce redisplay updates
+        this._workId = Main.initializeDeferredWork(
+            this._iconsBox,
+            () => this._redisplay()
+        );
+
         // Setup signal listeners
         this._appFavorites = AppFavorites.getAppFavorites();
-        this._appFavorites.connectObject('changed', () => this._redisplay(), this);
+        this._appFavorites.connectObject('changed', () => this._queueRedisplay(), this);
 
         this._appSystem = Shell.AppSystem.get_default();
         this._appSystem.connectObject(
-            'installed-changed', () => this._redisplay(),
-            'app-state-changed', () => this._redisplay(),
+            'installed-changed', () => this._queueRedisplay(),
+            'app-state-changed', () => this._queueRedisplay(),
             this
         );
 
@@ -395,6 +428,13 @@ class ArreraDock extends St.Widget {
         );
 
         this._redisplay();
+    }
+
+    _queueRedisplay() {
+        if (this._workId)
+            Main.queueDeferredWork(this._workId);
+        else
+            this._redisplay();
     }
 
     getPreferredHeight() {
@@ -415,48 +455,57 @@ class ArreraDock extends St.Widget {
         const favorites = this._appFavorites.getFavorites();
         const running = this._appSystem.get_running();
 
-        // Cache existing icon items by App ID
-        const existingIcons = new Map();
-        for (const child of this._iconsBox.get_children()) {
-            if (child.app)
-                existingIcons.set(child.app.get_id(), child);
-        }
-
-        // Clear icons container
-        this._iconsBox.destroy_all_children();
-
-        const favoriteIds = new Set();
-
-        // 1. Add Favorites
-        for (const app of favorites) {
-            const id = app.get_id();
-            favoriteIds.add(id);
-
-            let iconItem = existingIcons.get(id);
-            if (!iconItem)
-                iconItem = new DockAppIcon(app, this._iconSize);
-
-            this._iconsBox.add_child(iconItem);
-        }
-
-        // 2. Add Running apps not in favorites
+        const favoriteIds = new Set(favorites.map(app => app.get_id()));
         const nonFavoriteRunning = running.filter(app => !favoriteIds.has(app.get_id()));
 
-        if (nonFavoriteRunning.length > 0 && favorites.length > 0) {
-            const sep = new St.Widget({
-                style_class: 'dock-separator',
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-            this._iconsBox.add_child(sep);
+        // The complete set of apps that should currently be in the dock
+        const targetApps = [...favorites, ...nonFavoriteRunning];
+        const targetIds = new Set(targetApps.map(app => app.get_id()));
+
+        // 1. Destroy and delete icons that are no longer favorites and no longer running
+        for (const [id, icon] of this._appIcons.entries()) {
+            if (!targetIds.has(id)) {
+                if (icon.get_parent() === this._iconsBox)
+                    this._iconsBox.remove_child(icon);
+                icon.destroy();
+                this._appIcons.delete(id);
+            }
         }
 
+        // 2. Remove all remaining children from _iconsBox WITHOUT destroying them
+        this._iconsBox.remove_all_children();
+
+        // 3. Add favorite icons in order
+        for (const app of favorites) {
+            const id = app.get_id();
+            let icon = this._appIcons.get(id);
+            if (!icon) {
+                icon = new DockAppIcon(app, this._iconSize);
+                this._appIcons.set(id, icon);
+            }
+            this._iconsBox.add_child(icon);
+        }
+
+        // 4. Separator if both favorites and running non-favorites exist
+        if (favorites.length > 0 && nonFavoriteRunning.length > 0) {
+            if (!this._separator) {
+                this._separator = new St.Widget({
+                    style_class: 'dock-separator',
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+            }
+            this._iconsBox.add_child(this._separator);
+        }
+
+        // 5. Add running non-favorite apps in order
         for (const app of nonFavoriteRunning) {
             const id = app.get_id();
-            let iconItem = existingIcons.get(id);
-            if (!iconItem)
-                iconItem = new DockAppIcon(app, this._iconSize);
-
-            this._iconsBox.add_child(iconItem);
+            let icon = this._appIcons.get(id);
+            if (!icon) {
+                icon = new DockAppIcon(app, this._iconSize);
+                this._appIcons.set(id, icon);
+            }
+            this._iconsBox.add_child(icon);
         }
 
         this._updateActiveWindow();
@@ -464,16 +513,15 @@ class ArreraDock extends St.Widget {
 
     _updateActiveWindow() {
         const focusWindow = global.display.focus_window;
-        for (const child of this._iconsBox.get_children()) {
-            if (child instanceof DockAppIcon)
-                child.updateActiveState(focusWindow);
+        for (const icon of this._appIcons.values()) {
+            icon.updateActiveState(focusWindow);
         }
     }
 
     // Drag and drop support: accept apps dropped on the dock to add/reorder favorites
     handleDragOver(source, _actor, x, _y, _time) {
-        const app = Dash.Dash.getAppFromSource(source);
-        if (!app || app.is_window_backed())
+        const app = source?.app || (Dash.Dash?.getAppFromSource ? Dash.Dash.getAppFromSource(source) : null);
+        if (!app || app.is_window_backed?.())
             return DND.DragMotionResult.NO_DROP;
 
         if (!global.settings.is_writable('favorite-apps'))
@@ -483,8 +531,8 @@ class ArreraDock extends St.Widget {
     }
 
     acceptDrop(source, _actor, x, _y, _time) {
-        const app = Dash.Dash.getAppFromSource(source);
-        if (!app || app.is_window_backed())
+        const app = source?.app || (Dash.Dash?.getAppFromSource ? Dash.Dash.getAppFromSource(source) : null);
+        if (!app || app.is_window_backed?.())
             return false;
 
         if (!global.settings.is_writable('favorite-apps'))
@@ -492,10 +540,9 @@ class ArreraDock extends St.Widget {
 
         const id = app.get_id();
         const favorites = this._appFavorites.getFavorites();
-        const children = this._iconsBox.get_children().filter(c => c instanceof DockAppIcon);
 
         let pos = Math.min(
-            Math.floor(x / Math.max(1, this._iconsBox.width) * children.length),
+            Math.floor((x / Math.max(1, this._iconsBox.width)) * favorites.length),
             favorites.length
         );
 
@@ -512,6 +559,16 @@ class ArreraDock extends St.Widget {
         this._appSystem.disconnectObject(this);
         global.display.disconnectObject(this);
         global.workspace_manager.disconnectObject(this);
+
+        for (const icon of this._appIcons.values()) {
+            icon.destroy();
+        }
+        this._appIcons.clear();
+
+        if (this._separator) {
+            this._separator.destroy();
+            this._separator = null;
+        }
 
         super.destroy();
     }
