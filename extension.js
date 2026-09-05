@@ -20,6 +20,14 @@ export default class ArreraDockExtension extends Extension {
         this._settings = this.getSettings();
         const autohide = this._settings?.get_boolean('autohide') ?? false;
 
+        if (this._settings) {
+            this._settings.connectObject(
+                'changed::super-key-opens-launcher', () => this._syncSuperKey(),
+                this
+            );
+        }
+        this._syncSuperKey();
+
         this._appLauncher = new AppLaucher(this);
         this._dock = new ArreraDock(this);
         this._dock.bindAppLauncher(this._appLauncher);
@@ -172,6 +180,10 @@ export default class ArreraDockExtension extends Extension {
             controls.queue_relayout();
     }
 
+    _syncSuperKey() {
+        this._superKeyOpensLauncher = this._settings?.get_boolean('super-key-opens-launcher') ?? true;
+    }
+
     _patchOverviewToggle() {
         let cornerOrButtonClicked = false;
         const origShouldToggle = Main.overview.shouldToggleByCornerOrButton.bind(Main.overview);
@@ -198,12 +210,12 @@ export default class ArreraDockExtension extends Extension {
                 return;
             }
 
-            if (fromCornerOrButton) {
-                // Top-left "Activités" button / hot corner opens WINDOW_PICKER
-                Main.overview.show(OverviewControls.ControlsState.WINDOW_PICKER);
-            } else {
+            if (!fromCornerOrButton && this._superKeyOpensLauncher) {
                 // Super key (Windows key) shortcut opens the macOS Applications launcher
                 this.toggleAppLauncher();
+            } else {
+                // Top-left "Activités" button or Super key restored to GNOME default opens WINDOW_PICKER
+                Main.overview.show(OverviewControls.ControlsState.WINDOW_PICKER);
             }
         };
     }
@@ -285,6 +297,11 @@ export default class ArreraDockExtension extends Extension {
             Main.layoutManager.removeChrome(this._dock);
             this._dock.destroy();
             this._dock = null;
+        }
+
+        if (this._settings) {
+            this._settings.disconnectObject(this);
+            this._settings = null;
         }
 
         Main.layoutManager.disconnectObject(this);

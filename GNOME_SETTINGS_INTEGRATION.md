@@ -37,7 +37,18 @@ Ce document décrit en détail les clés **GSettings** du dock, leurs types, leu
 
 ---
 
-### 3. Taille des icônes du dock (`icon-size`)
+### 3. Touche Super pour le lanceur d'applications (`super-key-opens-launcher`)
+* **Clé** : `super-key-opens-launcher`
+* **Type** : `b` (Booléen / `gboolean`)
+* **Valeur par défaut** : `true`
+* **Valeurs possibles** :
+  * `true` : Appuyer sur la touche Super (touche Windows) ouvre le lanceur d'applications Arrera (style macOS).
+  * `false` : Rétablit le comportement d'origine de GNOME Shell : la touche Super ouvre l'aperçu des activités (*Activities Overview* / sélectionneur de fenêtres).
+* **Widget Libadwaita recommandé** : `AdwSwitchRow`
+
+---
+
+### 4. Taille des icônes du dock (`icon-size`)
 * **Clé** : `icon-size`
 * **Type** : `s` (Chaîne de caractères / `gchar*`)
 * **Valeur par défaut** : `'medium'`
@@ -52,7 +63,7 @@ Ce document décrit en détail les clés **GSettings** du dock, leurs types, leu
 
 ---
 
-### 4. Style du thème de couleur (`theme-mode`)
+### 5. Style du thème de couleur (`theme-mode`)
 * **Clé** : `theme-mode`
 * **Type** : `s` (Chaîne de caractères / `gchar*`)
 * **Valeur par défaut** : `'expressive'`
@@ -93,6 +104,14 @@ Ce document décrit en détail les clés **GSettings** du dock, leurs types, leu
           <object class="AdwSwitchRow" id="wave_row">
             <property name="title" translatable="yes">Effet d'agrandissement en vague</property>
             <property name="subtitle" translatable="yes">Agrandit les icônes au passage du pointeur</property>
+          </object>
+        </child>
+
+        <!-- Touche Super -->
+        <child>
+          <object class="AdwSwitchRow" id="super_key_row">
+            <property name="title" translatable="yes">Ouvrir le lanceur avec la touche Super</property>
+            <property name="subtitle" translatable="yes">Désactiver pour rétablir l'aperçu des activités GNOME d'origine</property>
           </object>
         </child>
       </object>
@@ -153,10 +172,11 @@ setup_dock_settings (AdwPreferencesPage *page, GtkBuilder *builder)
 {
     GSettings *settings = g_settings_new ("org.gnome.shell.extensions.dock");
 
-    GtkWidget *autohide_row = GTK_WIDGET (gtk_builder_get_object (builder, "autohide_row"));
-    GtkWidget *wave_row     = GTK_WIDGET (gtk_builder_get_object (builder, "wave_row"));
-    AdwComboRow *size_row   = ADW_COMBO_ROW (gtk_builder_get_object (builder, "size_row"));
-    AdwComboRow *theme_row  = ADW_COMBO_ROW (gtk_builder_get_object (builder, "theme_row"));
+    GtkWidget *autohide_row  = GTK_WIDGET (gtk_builder_get_object (builder, "autohide_row"));
+    GtkWidget *wave_row      = GTK_WIDGET (gtk_builder_get_object (builder, "wave_row"));
+    GtkWidget *super_key_row = GTK_WIDGET (gtk_builder_get_object (builder, "super_key_row"));
+    AdwComboRow *size_row    = ADW_COMBO_ROW (gtk_builder_get_object (builder, "size_row"));
+    AdwComboRow *theme_row   = ADW_COMBO_ROW (gtk_builder_get_object (builder, "theme_row"));
 
     /* 1. Lier les switchs booléens simples */
     g_settings_bind (settings, "autohide",
@@ -165,6 +185,10 @@ setup_dock_settings (AdwPreferencesPage *page, GtkBuilder *builder)
 
     g_settings_bind (settings, "enable-wave-effect",
                      wave_row, "active",
+                     G_SETTINGS_BIND_DEFAULT);
+
+    g_settings_bind (settings, "super-key-opens-launcher",
+                     super_key_row, "active",
                      G_SETTINGS_BIND_DEFAULT);
 
     /* 2. Lier la taille des icônes (Index <-> Chaîne) */
@@ -223,9 +247,13 @@ gsettings set org.gnome.shell.extensions.dock icon-size 'large'
 # Modifier le thème ('expressive' | 'black-outline')
 gsettings set org.gnome.shell.extensions.dock theme-mode 'black-outline'
 
+# Modifier l'action de la touche Super (true = lanceur Arrera, false = GNOME d'origine)
+gsettings set org.gnome.shell.extensions.dock super-key-opens-launcher false
+
 # Réinitialiser toutes les options à leurs valeurs par défaut
 gsettings reset org.gnome.shell.extensions.dock autohide
 gsettings reset org.gnome.shell.extensions.dock enable-wave-effect
+gsettings reset org.gnome.shell.extensions.dock super-key-opens-launcher
 gsettings reset org.gnome.shell.extensions.dock icon-size
 gsettings reset org.gnome.shell.extensions.dock theme-mode
 ```

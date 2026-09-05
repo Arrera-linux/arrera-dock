@@ -14,6 +14,12 @@
       <description>Active ou désactive l'effet de vague et d'agrandissement dynamique des icônes au survol de la souris.</description>
     </key>
 
+    <key name="super-key-opens-launcher" type="b">
+      <default>true</default>
+      <summary>Ouvrir le lanceur avec la touche Super</summary>
+      <description>Si activé, la touche Super ouvre le lanceur d'applications Arrera. Si désactivé, elle rétablit le comportement d'origine de GNOME (aperçu des activités).</description>
+    </key>
+
     <key name="icon-size" type="s">
       <choices>
         <choice value="small"/>
