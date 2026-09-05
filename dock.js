@@ -281,11 +281,7 @@ class ShowAppsButton extends St.Button {
 
         this._dock = dock;
         this._iconSize = iconSize;
-        this._icon = new St.Icon({
-            icon_name: 'view-app-grid-symbolic',
-            icon_size: iconSize,
-            style_class: 'show-apps-icon',
-        });
+        this._icon = this._createIcon(iconSize);
         this.set_child(this._icon);
         this.set_pivot_point(0.5, 1.0);
 
@@ -304,9 +300,41 @@ class ShowAppsButton extends St.Button {
         });
     }
 
+    _createIcon(iconSize) {
+        const extPath = this._dock?._extension?.path;
+        if (extPath) {
+            const candidates = [
+                'show-apps-symbolic.svg',
+                'show-apps.svg',
+                'show-apps.png',
+                'logo-symbolic.svg',
+                'logo.svg',
+                'logo.png',
+            ];
+            for (const name of candidates) {
+                const filePath = `${extPath}/icons/${name}`;
+                const file = Gio.File.new_for_path(filePath);
+                if (file.query_exists(null)) {
+                    return new St.Icon({
+                        gicon: new Gio.FileIcon({ file }),
+                        icon_size: iconSize,
+                        style_class: 'show-apps-icon',
+                    });
+                }
+            }
+        }
+
+        return new St.Icon({
+            icon_name: 'view-app-grid-symbolic',
+            icon_size: iconSize,
+            style_class: 'show-apps-icon',
+        });
+    }
+
     setIconSize(size) {
         this._iconSize = size;
-        this._icon.icon_size = size;
+        if (this._icon)
+            this._icon.icon_size = size;
     }
 
     _cleanupTooltip() {
