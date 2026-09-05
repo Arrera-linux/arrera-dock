@@ -21,11 +21,35 @@ import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as OverviewControls from 'resource:///org/gnome/shell/ui/overviewControls.js';
 
-const DEFAULT_ICON_SIZE = 36;
-const DOCK_HEIGHT = 56;
-const WAVE_MAX_SCALE = 2.1;
-const WAVE_RADIUS = 165;
-const WAVE_MAX_SHIFT = 28;
+export const SIZES = {
+    small: {
+        iconSize: 28,
+        dockHeight: 46,
+        waveMaxScale: 2.0,
+        waveRadius: 140,
+        waveMaxShift: 22,
+    },
+    medium: {
+        iconSize: 36,
+        dockHeight: 56,
+        waveMaxScale: 2.1,
+        waveRadius: 165,
+        waveMaxShift: 28,
+    },
+    large: {
+        iconSize: 48,
+        dockHeight: 72,
+        waveMaxScale: 1.9,
+        waveRadius: 200,
+        waveMaxShift: 34,
+    },
+};
+
+const DEFAULT_ICON_SIZE = SIZES.medium.iconSize;
+const DOCK_HEIGHT = SIZES.medium.dockHeight;
+const WAVE_MAX_SCALE = SIZES.medium.waveMaxScale;
+const WAVE_RADIUS = SIZES.medium.waveRadius;
+const WAVE_MAX_SHIFT = SIZES.medium.waveMaxShift;
 
 /**
  * DockAppIcon represents an individual application launcher inside Arrera Dock.
@@ -33,9 +57,10 @@ const WAVE_MAX_SHIFT = 28;
  */
 export const DockAppIcon = GObject.registerClass(
 class DockAppIcon extends Dash.DashIcon {
-    _init(app, iconSize = DEFAULT_ICON_SIZE) {
+    _init(app, iconSize = DEFAULT_ICON_SIZE, dock = null) {
         super._init(app);
 
+        this._dock = dock;
         this._iconSize = iconSize;
         this.icon.setIconSize(iconSize);
         this.label_actor = null;
@@ -52,15 +77,21 @@ class DockAppIcon extends Dash.DashIcon {
             }
         });
 
-        // Hide tooltip when context menu opens
-        this.connect('menu-state-changed', (actor, opened) => {
+        // Hide tooltip when context menu opens & notify dock for autohide
+        this.connect('menu-state-changed', (_actor, opened) => {
             if (opened)
                 this._hideTooltip();
+            this._dock?._onMenuStateChanged?.(opened);
         });
 
         this.connect('destroy', () => {
             this._cleanupTooltip();
         });
+    }
+
+    setIconSize(size) {
+        this._iconSize = size;
+        this.icon.setIconSize(size);
     }
 
     _cleanupTooltip() {
@@ -249,6 +280,7 @@ class ShowAppsButton extends St.Button {
         });
 
         this._dock = dock;
+        this._iconSize = iconSize;
         this._icon = new St.Icon({
             icon_name: 'view-app-grid-symbolic',
             icon_size: iconSize,
@@ -270,6 +302,11 @@ class ShowAppsButton extends St.Button {
         this.connect('destroy', () => {
             this._cleanupTooltip();
         });
+    }
+
+    setIconSize(size) {
+        this._iconSize = size;
+        this._icon.icon_size = size;
     }
 
     _cleanupTooltip() {
@@ -371,7 +408,25 @@ class ArreraDock extends St.Widget {
         });
 
         this._extension = extension;
-        this._iconSize = DEFAULT_ICON_SIZE;
+        this._settings = extension.getSettings?.();
+
+        // Icon sizing
+        this._sizeName = 'medium';
+        this._iconSize = SIZES.medium.iconSize;
+        this._dockHeight = SIZES.medium.dockHeight;
+        this._waveMaxScale = SIZES.medium.waveMaxScale;
+        this._waveRadius = SIZES.medium.waveRadius;
+        this._waveMaxShift = SIZES.medium.waveMaxShift;
+
+        // Wave effect
+        this._enableWaveEffect = true;
+
+        // Autohide state
+        this._autohide = false;
+        this._autohideTimeoutId = 0;
+        this._openMenusCount = 0;
+        this._isDockHidden = false;
+
         this._appIcons = new Map();
         this._separator = null;
 
@@ -402,8 +457,19 @@ class ArreraDock extends St.Widget {
         });
 
         this._dockPill.connect('notify::hover', () => {
-            if (!this._dockPill.hover)
+            if (this._dockPill.hover) {
+                this._onEnter();
+            } else {
                 this._resetWaveMagnification();
+                this._onLeave();
+            }
+        });
+
+        this.connect('notify::hover', () => {
+            if (this.hover)
+                this._onEnter();
+            else
+                this._onLeave();
         });
 
         // Icons box (favorites and running apps)
@@ -458,6 +524,23 @@ class ArreraDock extends St.Widget {
         this._interfaceSettings.connectObject('changed::accent-color', () => this._syncAccentColor(), this);
         this._syncAccentColor();
 
+        // Connect GSettings for Dock customization
+        if (this._settings) {
+            this._settings.connectObject(
+                'changed::autohide', () => this._syncAutohide(),
+                'changed::enable-wave-effect', () => this._syncWaveEffect(),
+                'changed::icon-size', () => this._syncIconSize(true),
+                'changed::theme-mode', () => this._syncThemeMode(),
+                this
+            );
+        }
+
+        // Initial synchronization of settings
+        this._syncIconSize(false);
+        this._syncWaveEffect();
+        this._syncThemeMode();
+        this._syncAutohide();
+
         this._hasConnectedAdjustment = false;
         this._bindOverview();
 
@@ -497,6 +580,9 @@ class ArreraDock extends St.Widget {
         this._dockPill.translation_y = 0;
         this._dockPill.reactive = true;
         this._resetWaveMagnification();
+
+        if (this._autohide && !this.hover && !this._dockPill.hover)
+            this._onLeave();
     }
 
     _syncWithOverview() {
@@ -564,9 +650,16 @@ class ArreraDock extends St.Widget {
     }
 
     _applyWaveMagnification(stageX) {
+        if (!this._enableWaveEffect)
+            return;
+
         const items = this._getAllDockItems();
         if (items.length === 0)
             return;
+
+        const maxScale = this._waveMaxScale || WAVE_MAX_SCALE;
+        const radius = this._waveRadius || WAVE_RADIUS;
+        const maxShift = this._waveMaxShift || WAVE_MAX_SHIFT;
 
         for (const item of items) {
             item.remove_all_transitions();
@@ -578,13 +671,13 @@ class ArreraDock extends St.Widget {
 
             const dx = Math.abs(stageX - itemCenterX);
 
-            if (dx < WAVE_RADIUS) {
-                const factor = 0.5 * (1 + Math.cos((Math.PI * dx) / WAVE_RADIUS));
-                const scale = 1.0 + (WAVE_MAX_SCALE - 1.0) * factor;
+            if (dx < radius) {
+                const factor = 0.5 * (1 + Math.cos((Math.PI * dx) / radius));
+                const scale = 1.0 + (maxScale - 1.0) * factor;
 
                 const direction = itemCenterX >= stageX ? 1 : -1;
-                const shiftFactor = Math.sin((Math.PI * dx) / WAVE_RADIUS);
-                const shiftX = direction * WAVE_MAX_SHIFT * shiftFactor;
+                const shiftFactor = Math.sin((Math.PI * dx) / radius);
+                const shiftX = direction * maxShift * shiftFactor;
 
                 item.set_pivot_point(0.5, 1.0);
                 item.set_scale(scale, scale);
@@ -619,22 +712,178 @@ class ArreraDock extends St.Widget {
             this._redisplay();
     }
 
-    bindAppLauncher(launcher) {
-        if (!launcher || !this._showAppsButton)
-            return;
-
-        this._appLauncher = launcher;
+    bindAppLauncher(appLauncher) {
+        this._appLauncher = appLauncher;
         this._syncAccentColor();
 
-        launcher.connectObject(
+        appLauncher.connectObject(
             'opened', () => {
                 this._showAppsButton.add_style_pseudo_class('checked');
+                if (this._autohide)
+                    this._showDock();
             },
             'closed', () => {
                 this._showAppsButton.remove_style_pseudo_class('checked');
+                if (this._autohide && !this.hover && !this._dockPill.hover)
+                    this._onLeave();
             },
             this
         );
+    }
+
+    _onMenuStateChanged(opened) {
+        if (opened) {
+            this._openMenusCount++;
+            if (this._autohide)
+                this._showDock();
+        } else {
+            this._openMenusCount = Math.max(0, this._openMenusCount - 1);
+            if (this._autohide && !this.hover && !this._dockPill.hover)
+                this._onLeave();
+        }
+    }
+
+    _onEnter() {
+        if (!this._autohide)
+            return;
+
+        if (this._autohideTimeoutId) {
+            GLib.source_remove(this._autohideTimeoutId);
+            this._autohideTimeoutId = 0;
+        }
+
+        this._showDock();
+    }
+
+    _onLeave() {
+        if (!this._autohide)
+            return;
+
+        if (Main.overview.visible || this._appLauncher?.isOpen || this._openMenusCount > 0)
+            return;
+
+        if (this._autohideTimeoutId)
+            GLib.source_remove(this._autohideTimeoutId);
+
+        this._autohideTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
+            this._autohideTimeoutId = 0;
+            if (!this.hover && !this._dockPill.hover && !this._openMenusCount && !this._appLauncher?.isOpen && !Main.overview.visible) {
+                this._hideDock();
+            }
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _showDock() {
+        this._isDockHidden = false;
+        const monitor = Main.layoutManager.primaryMonitor;
+        if (monitor) {
+            const dockHeight = this.getPreferredHeight();
+            this.set_position(monitor.x, monitor.y + monitor.height - dockHeight);
+            this.set_size(monitor.width, dockHeight);
+        }
+
+        this._dockPill.remove_all_transitions();
+        this._dockPill.ease({
+            translation_y: 0,
+            opacity: 255,
+            duration: 220,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
+    }
+
+    _hideDock() {
+        this._isDockHidden = true;
+        this._resetWaveMagnification();
+        this._hideTooltips();
+
+        const dockHeight = this.getPreferredHeight();
+        this._dockPill.remove_all_transitions();
+        this._dockPill.ease({
+            translation_y: dockHeight + 10,
+            opacity: 0,
+            duration: 250,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                if (this._isDockHidden && this._autohide) {
+                    const monitor = Main.layoutManager.primaryMonitor;
+                    if (monitor) {
+                        // Narrow bottom trigger area so windows remain completely clickable
+                        this.set_position(monitor.x, monitor.y + monitor.height - 4);
+                        this.set_size(monitor.width, 4);
+                    }
+                }
+            },
+        });
+    }
+
+    _syncAutohide() {
+        this._autohide = this._settings?.get_boolean('autohide') ?? false;
+        this.reactive = this._autohide;
+        this.track_hover = this._autohide;
+
+        this._extension?.updateChromeStruts?.(!this._autohide);
+
+        if (!this._autohide) {
+            if (this._autohideTimeoutId) {
+                GLib.source_remove(this._autohideTimeoutId);
+                this._autohideTimeoutId = 0;
+            }
+            this._showDock();
+        } else {
+            if (!this.hover && !this._dockPill.hover && !Main.overview.visible)
+                this._hideDock();
+        }
+    }
+
+    _syncWaveEffect() {
+        this._enableWaveEffect = this._settings?.get_boolean('enable-wave-effect') ?? true;
+        if (!this._enableWaveEffect)
+            this._resetWaveMagnification();
+    }
+
+    _syncIconSize(redisplay = true) {
+        const sizeName = this._settings?.get_string('icon-size') || 'medium';
+        const config = SIZES[sizeName] || SIZES.medium;
+
+        this._sizeName = sizeName;
+        this._iconSize = config.iconSize;
+        this._dockHeight = config.dockHeight;
+        this._waveMaxScale = config.waveMaxScale;
+        this._waveRadius = config.waveRadius;
+        this._waveMaxShift = config.waveMaxShift;
+
+        for (const s of ['small', 'medium', 'large']) {
+            this.remove_style_class_name(`size-${s}`);
+            this._dockPill?.remove_style_class_name(`size-${s}`);
+        }
+        this.add_style_class_name(`size-${sizeName}`);
+        this._dockPill?.add_style_class_name(`size-${sizeName}`);
+
+        for (const icon of this._appIcons.values()) {
+            icon.setIconSize(this._iconSize);
+        }
+        this._showAppsButton?.setIconSize(this._iconSize);
+
+        this.updatePosition();
+        this._extension?._updateDockPosition?.();
+
+        const controls = Main.overview._overview?._controls;
+        controls?.queue_relayout();
+
+        if (redisplay)
+            this._redisplay();
+    }
+
+    _syncThemeMode() {
+        const mode = this._settings?.get_string('theme-mode') || 'expressive';
+        this.remove_style_class_name('theme-expressive');
+        this.remove_style_class_name('theme-black-outline');
+        this._dockPill?.remove_style_class_name('theme-expressive');
+        this._dockPill?.remove_style_class_name('theme-black-outline');
+
+        this.add_style_class_name(`theme-${mode}`);
+        this._dockPill?.add_style_class_name(`theme-${mode}`);
     }
 
     _syncAccentColor() {
@@ -659,7 +908,7 @@ class ArreraDock extends St.Widget {
     }
 
     getPreferredHeight() {
-        return DOCK_HEIGHT;
+        return this._dockHeight || DOCK_HEIGHT;
     }
 
     updatePosition() {
@@ -668,8 +917,13 @@ class ArreraDock extends St.Widget {
             return;
 
         const dockHeight = this.getPreferredHeight();
-        this.set_position(monitor.x, monitor.y + monitor.height - dockHeight);
-        this.set_size(monitor.width, dockHeight);
+        if (this._autohide && this._isDockHidden) {
+            this.set_position(monitor.x, monitor.y + monitor.height - 4);
+            this.set_size(monitor.width, 4);
+        } else {
+            this.set_position(monitor.x, monitor.y + monitor.height - dockHeight);
+            this.set_size(monitor.width, dockHeight);
+        }
     }
 
     _redisplay() {
@@ -701,8 +955,10 @@ class ArreraDock extends St.Widget {
             const id = app.get_id();
             let icon = this._appIcons.get(id);
             if (!icon) {
-                icon = new DockAppIcon(app, this._iconSize);
+                icon = new DockAppIcon(app, this._iconSize, this);
                 this._appIcons.set(id, icon);
+            } else {
+                icon.setIconSize(this._iconSize);
             }
             this._iconsBox.add_child(icon);
         }
@@ -723,8 +979,10 @@ class ArreraDock extends St.Widget {
             const id = app.get_id();
             let icon = this._appIcons.get(id);
             if (!icon) {
-                icon = new DockAppIcon(app, this._iconSize);
+                icon = new DockAppIcon(app, this._iconSize, this);
                 this._appIcons.set(id, icon);
+            } else {
+                icon.setIconSize(this._iconSize);
             }
             this._iconsBox.add_child(icon);
         }
@@ -739,24 +997,18 @@ class ArreraDock extends St.Widget {
         }
     }
 
-    // Drag and drop support: accept apps dropped on the dock to add/reorder favorites
-    handleDragOver(source, _actor, x, _y, _time) {
-        const app = source?.app || (Dash.Dash?.getAppFromSource ? Dash.Dash.getAppFromSource(source) : null);
-        if (!app || app.is_window_backed?.())
-            return DND.DragMotionResult.NO_DROP;
-
-        if (!global.settings.is_writable('favorite-apps'))
+    // Drag-and-drop support: reorder favorites inside Arrera Dock
+    handleDragOver(source, _actor, x, _y, _step) {
+        const app = source.app;
+        if (!app)
             return DND.DragMotionResult.NO_DROP;
 
         return DND.DragMotionResult.MOVE_DROP;
     }
 
     acceptDrop(source, _actor, x, _y, _time) {
-        const app = source?.app || (Dash.Dash?.getAppFromSource ? Dash.Dash.getAppFromSource(source) : null);
-        if (!app || app.is_window_backed?.())
-            return false;
-
-        if (!global.settings.is_writable('favorite-apps'))
+        const app = source.app;
+        if (!app)
             return false;
 
         const id = app.get_id();
@@ -776,6 +1028,11 @@ class ArreraDock extends St.Widget {
     }
 
     destroy() {
+        if (this._autohideTimeoutId) {
+            GLib.source_remove(this._autohideTimeoutId);
+            this._autohideTimeoutId = 0;
+        }
+
         this._resetWaveMagnification();
 
         if (this._extension?.appLauncher)
@@ -790,6 +1047,11 @@ class ArreraDock extends St.Widget {
         this._appSystem.disconnectObject(this);
         global.display.disconnectObject(this);
         global.workspace_manager.disconnectObject(this);
+
+        if (this._settings) {
+            this._settings.disconnectObject(this);
+            this._settings = null;
+        }
 
         for (const icon of this._appIcons.values()) {
             icon.destroy();

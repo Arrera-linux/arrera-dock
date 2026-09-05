@@ -17,15 +17,18 @@ import { AppLaucher } from './appLauncher.js';
 
 export default class ArreraDockExtension extends Extension {
     enable() {
+        this._settings = this.getSettings();
+        const autohide = this._settings?.get_boolean('autohide') ?? false;
+
         this._appLauncher = new AppLaucher(this);
         this._dock = new ArreraDock(this);
         this._dock.bindAppLauncher(this._appLauncher);
 
         // Position and add dock as top chrome
-        // affectsStruts: true ensures desktop windows maximize above the dock
+        // affectsStruts: true ensures desktop windows maximize above the dock (when autohide is off)
         // trackFullscreen: true ensures dock hides during fullscreen media/games
         Main.layoutManager.addTopChrome(this._dock, {
-            affectsStruts: true,
+            affectsStruts: !autohide,
             trackFullscreen: true,
         });
 
@@ -64,6 +67,18 @@ export default class ArreraDockExtension extends Extension {
     _updateDockPosition() {
         if (this._dock)
             this._dock.updatePosition();
+    }
+
+    updateChromeStruts(affectsStruts) {
+        if (!this._dock)
+            return;
+
+        Main.layoutManager.removeChrome(this._dock);
+        Main.layoutManager.addTopChrome(this._dock, {
+            affectsStruts,
+            trackFullscreen: true,
+        });
+        this._updateDockPosition();
     }
 
     _replaceNativeDash() {

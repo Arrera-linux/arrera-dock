@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="dock">
+  <schema id="org.gnome.shell.extensions.dock" path="/org/gnome/shell/extensions/dock/">
+    
+    <key name="autohide" type="b">
+      <default>false</default>
+      <summary>Masquage automatique du dock</summary>
+      <description>Masque automatiquement le dock quand il n'est pas survolé ou quand une fenêtre le chevauche.</description>
+    </key>
+
+    <key name="enable-wave-effect" type="b">
+      <default>true</default>
+      <summary>Effet de vague (agrandissement au survol)</summary>
+      <description>Active ou désactive l'effet de vague et d'agrandissement dynamique des icônes au survol de la souris.</description>
+    </key>
+
+    <key name="icon-size" type="s">
+      <choices>
+        <choice value="small"/>
+        <choice value="medium"/>
+        <choice value="large"/>
+      </choices>
+      <default>'medium'</default>
+      <summary>Taille des icônes du dock</summary>
+      <description>Taille des icônes des applications dans le dock : small (28px), medium (36px), large (48px).</description>
+    </key>
+
+    <key name="theme-mode" type="s">
+      <choices>
+        <choice value="expressive"/>
+        <choice value="black-outline"/>
+      </choices>
+      <default>'expressive'</default>
+      <summary>Mode du thème de couleur</summary>
+      <description>Style d'application de la couleur : expressive (fond du dock teinté) ou black-outline (fond noir avec contour de la couleur d'accentuation).</description>
+    </key>
+
+  </schema>
+</schemalist>

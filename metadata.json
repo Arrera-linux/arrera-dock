@@ -10,5 +10,6 @@
     "49",
     "50"
   ],
+  "settings-schema": "org.gnome.shell.extensions.dock",
   "url": "https://github.com/Arrera-linux/arrera-dock"
 }

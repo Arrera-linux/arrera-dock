@@ -694,3 +694,214 @@
     font-weight: 500;
     text-align: center;
 }
+
+/* ==========================================================================
+   Dock Dynamic Icon Sizing (Small, Medium, Large)
+   ========================================================================== */
+
+/* Small (28px) */
+.size-small.arrera-dock {
+    border-radius: 28px;
+    padding: 3px 12px;
+    spacing: 8px;
+}
+.size-small .arrera-dock-icons {
+    spacing: 8px;
+}
+.size-small .dock-app-icon {
+    padding: 2px 4px;
+    border-radius: 14px;
+}
+.size-small .dock-separator {
+    height: 20px;
+}
+.size-small .show-apps-button {
+    padding: 2px 6px;
+    border-radius: 16px;
+}
+.size-small .dock-app-icon .app-grid-running-dot {
+    width: 6px;
+    height: 3px;
+}
+.size-small .dock-app-icon .app-grid-running-dot.focused {
+    width: 16px;
+    height: 3.5px;
+}
+
+/* Medium (36px - Default) */
+.size-medium.arrera-dock {
+    border-radius: 36px;
+    padding: 5px 16px;
+    spacing: 10px;
+}
+.size-medium .arrera-dock-icons {
+    spacing: 10px;
+}
+.size-medium .dock-app-icon {
+    padding: 4px 6px;
+    border-radius: 20px;
+}
+.size-medium .dock-separator {
+    height: 26px;
+}
+.size-medium .show-apps-button {
+    padding: 4px 10px;
+    border-radius: 22px;
+}
+.size-medium .dock-app-icon .app-grid-running-dot {
+    width: 8px;
+    height: 3.5px;
+}
+.size-medium .dock-app-icon .app-grid-running-dot.focused {
+    width: 22px;
+    height: 4px;
+}
+
+/* Large (48px) */
+.size-large.arrera-dock {
+    border-radius: 42px;
+    padding: 6px 20px;
+    spacing: 14px;
+}
+.size-large .arrera-dock-icons {
+    spacing: 14px;
+}
+.size-large .dock-app-icon {
+    padding: 6px 8px;
+    border-radius: 24px;
+}
+.size-large .dock-separator {
+    height: 32px;
+}
+.size-large .show-apps-button {
+    padding: 6px 12px;
+    border-radius: 26px;
+}
+.size-large .dock-app-icon .app-grid-running-dot {
+    width: 10px;
+    height: 4px;
+}
+.size-large .dock-app-icon .app-grid-running-dot.focused {
+    width: 26px;
+    height: 5px;
+}
+
+/* ==========================================================================
+   Theme Mode: Black with Accent Outline (theme-black-outline)
+   ========================================================================== */
+
+.theme-black-outline.arrera-dock {
+    background-color: rgba(10, 10, 14, 0.95);
+    border: 2px solid -st-accent-color;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 22px st-transparentize(-st-accent-color, 0.55);
+}
+.theme-black-outline .dock-app-icon:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 0 1px st-transparentize(-st-accent-color, 0.60);
+}
+.theme-black-outline .dock-separator {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+.theme-black-outline .show-apps-button {
+    background-color: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+/* Orange */
+.theme-black-outline.accent-orange.arrera-dock {
+    background-color: rgba(12, 12, 15, 0.95);
+    border: 2px solid #ed5b00;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 24px rgba(237, 91, 0, 0.50);
+}
+.theme-black-outline.accent-orange .dock-app-icon:hover {
+    background-color: rgba(237, 91, 0, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(237, 91, 0, 0.50);
+}
+
+/* Blue */
+.theme-black-outline.accent-blue.arrera-dock {
+    background-color: rgba(12, 12, 15, 0.95);
+    border: 2px solid #3584e4;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 24px rgba(53, 132, 228, 0.50);
+}
+.theme-black-outline.accent-blue .dock-app-icon:hover {
+    background-color: rgba(53, 132, 228, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(53, 132, 228, 0.50);
+}
+
+/* Teal */
+.theme-black-outline.accent-teal.arrera-dock {
+    background-color: rgba(12, 12, 15, 0.95);
+    border: 2px solid #2190a4;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 24px rgba(33, 144, 164, 0.50);
+}
+.theme-black-outline.accent-teal .dock-app-icon:hover {
+    background-color: rgba(33, 144, 164, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(33, 144, 164, 0.50);
+}
+
+/* Green */
+.theme-black-outline.accent-green.arrera-dock {
+    background-color: rgba(12, 12, 15, 0.95);
+    border: 2px solid #3a944a;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 24px rgba(58, 148, 74, 0.50);
+}
+.theme-black-outline.accent-green .dock-app-icon:hover {
+    background-color: rgba(58, 148, 74, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(58, 148, 74, 0.50);
+}
+
+/* Yellow */
+.theme-black-outline.accent-yellow.arrera-dock {
+    background-color: rgba(12, 12, 15, 0.95);
+    border: 2px solid #c88800;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 24px rgba(200, 136, 0, 0.50);
+}
+.theme-black-outline.accent-yellow .dock-app-icon:hover {
+    background-color: rgba(200, 136, 0, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(200, 136, 0, 0.50);
+}
+
+/* Red */
+.theme-black-outline.accent-red.arrera-dock {
+    background-color: rgba(12, 12, 15, 0.95);
+    border: 2px solid #e62d42;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 24px rgba(230, 45, 66, 0.50);
+}
+.theme-black-outline.accent-red .dock-app-icon:hover {
+    background-color: rgba(230, 45, 66, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(230, 45, 66, 0.50);
+}
+
+/* Pink */
+.theme-black-outline.accent-pink.arrera-dock {
+    background-color: rgba(12, 12, 15, 0.95);
+    border: 2px solid #d56199;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 24px rgba(213, 97, 153, 0.50);
+}
+.theme-black-outline.accent-pink .dock-app-icon:hover {
+    background-color: rgba(213, 97, 153, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(213, 97, 153, 0.50);
+}
+
+/* Purple */
+.theme-black-outline.accent-purple.arrera-dock {
+    background-color: rgba(12, 12, 15, 0.95);
+    border: 2px solid #9141ac;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 24px rgba(145, 65, 172, 0.50);
+}
+.theme-black-outline.accent-purple .dock-app-icon:hover {
+    background-color: rgba(145, 65, 172, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(145, 65, 172, 0.50);
+}
+
+/* Slate */
+.theme-black-outline.accent-slate.arrera-dock {
+    background-color: rgba(12, 12, 15, 0.95);
+    border: 2px solid #6f8396;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 24px rgba(111, 131, 150, 0.50);
+}
+.theme-black-outline.accent-slate .dock-app-icon:hover {
+    background-color: rgba(111, 131, 150, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(111, 131, 150, 0.50);
+}
