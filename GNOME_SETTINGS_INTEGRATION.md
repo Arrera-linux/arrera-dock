@@ -70,9 +70,18 @@ Ce document décrit en détail les clés **GSettings** du dock, leurs types, leu
 * **Valeurs possibles** :
   * `'expressive'` : Style **Android 16 QPR2 / Material 3 Expressive**. Le conteneur du dock s'imprègne de la couleur d'accentuation choisie dans GNOME (ex: surface ambrée riche si orange).
   * `'black-outline'` : Style **Fond noir avec contour couleur**. Le conteneur du dock est noir profond (`#0c0c0f`), avec une bordure nette de 2px et un halo lumineux de la couleur d'accentuation active.
+### 6. Position du dock sur l'écran (`position`)
+* **Clé** : `position`
+* **Type** : `s` (Chaîne de caractères / `gchar*`)
+* **Valeur par défaut** : `'bottom'`
+* **Valeurs possibles** :
+  * `'bottom'` : Le dock est positionné horizontalement en bas de l'écran (standard).
+  * `'left'` : Le dock pivote à la verticale et se place le long du bord gauche de l'écran.
+  * `'right'` : Le dock pivote à la verticale et se place le long du bord droit de l'écran.
 * **Widget Libadwaita recommandé** : `AdwComboRow` avec un modèle de chaînes (`GtkStringList`) contenant :
-  1. Matériel Expressif (fond teinté)
-  2. Noir avec contour coloré
+  1. En bas
+  2. À gauche
+  3. À droite
 
 ---
 
@@ -121,6 +130,22 @@ Ce document décrit en détail les clés **GSettings** du dock, leurs types, leu
     <child>
       <object class="AdwPreferencesGroup">
         <property name="title" translatable="yes">Apparence</property>
+
+        <!-- Position du dock à l'écran -->
+        <child>
+          <object class="AdwComboRow" id="position_row">
+            <property name="title" translatable="yes">Position à l'écran</property>
+            <property name="model">
+              <object class="GtkStringList">
+                <items>
+                  <item translatable="yes">En bas</item>
+                  <item translatable="yes">À gauche</item>
+                  <item translatable="yes">À droite</item>
+                </items>
+              </object>
+            </property>
+          </object>
+        </child>
 
         <!-- Taille des icônes -->
         <child>
@@ -175,6 +200,7 @@ setup_dock_settings (AdwPreferencesPage *page, GtkBuilder *builder)
     GtkWidget *autohide_row  = GTK_WIDGET (gtk_builder_get_object (builder, "autohide_row"));
     GtkWidget *wave_row      = GTK_WIDGET (gtk_builder_get_object (builder, "wave_row"));
     GtkWidget *super_key_row = GTK_WIDGET (gtk_builder_get_object (builder, "super_key_row"));
+    AdwComboRow *position_row = ADW_COMBO_ROW (gtk_builder_get_object (builder, "position_row"));
     AdwComboRow *size_row    = ADW_COMBO_ROW (gtk_builder_get_object (builder, "size_row"));
     AdwComboRow *theme_row   = ADW_COMBO_ROW (gtk_builder_get_object (builder, "theme_row"));
 
@@ -191,7 +217,24 @@ setup_dock_settings (AdwPreferencesPage *page, GtkBuilder *builder)
                      super_key_row, "active",
                      G_SETTINGS_BIND_DEFAULT);
 
-    /* 2. Lier la taille des icônes (Index <-> Chaîne) */
+    /* 2. Lier la position (Index <-> Chaîne) */
+    /* Valeurs : 0 = "bottom", 1 = "left", 2 = "right" */
+    const gchar *current_pos = g_settings_get_string (settings, "position");
+    if (g_strcmp0 (current_pos, "left") == 0)
+        adw_combo_row_set_selected (position_row, 1);
+    else if (g_strcmp0 (current_pos, "right") == 0)
+        adw_combo_row_set_selected (position_row, 2);
+    else
+        adw_combo_row_set_selected (position_row, 0);
+
+    g_signal_connect_swapped (position_row, "notify::selected",
+        G_CALLBACK (+[](GSettings *s, AdwComboRow *row) {
+            guint sel = adw_combo_row_get_selected (row);
+            const gchar *val = (sel == 1) ? "left" : (sel == 2 ? "right" : "bottom");
+            g_settings_set_string (s, "position", val);
+        }), settings);
+
+    /* 3. Lier la taille des icônes (Index <-> Chaîne) */
     /* Valeurs : 0 = "small", 1 = "medium", 2 = "large" */
     const gchar *current_size = g_settings_get_string (settings, "icon-size");
     if (g_strcmp0 (current_size, "small") == 0)
@@ -208,7 +251,7 @@ setup_dock_settings (AdwPreferencesPage *page, GtkBuilder *builder)
             g_settings_set_string (s, "icon-size", val);
         }), settings);
 
-    /* 3. Lier le thème (Index <-> Chaîne) */
+    /* 4. Lier le thème (Index <-> Chaîne) */
     /* Valeurs : 0 = "expressive", 1 = "black-outline" */
     const gchar *current_theme = g_settings_get_string (settings, "theme-mode");
     if (g_strcmp0 (current_theme, "black-outline") == 0)
@@ -235,6 +278,11 @@ Pour vérifier l'état ou modifier manuellement les réglages depuis un terminal
 # Consulter toutes les valeurs actuelles
 gsettings list-recursively org.gnome.shell.extensions.dock
 
+# Modifier la position ('bottom' | 'left' | 'right')
+gsettings set org.gnome.shell.extensions.dock position 'left'
+gsettings set org.gnome.shell.extensions.dock position 'right'
+gsettings set org.gnome.shell.extensions.dock position 'bottom'
+
 # Modifier le masquage automatique (true / false)
 gsettings set org.gnome.shell.extensions.dock autohide true
 
@@ -251,6 +299,7 @@ gsettings set org.gnome.shell.extensions.dock theme-mode 'black-outline'
 gsettings set org.gnome.shell.extensions.dock super-key-opens-launcher false
 
 # Réinitialiser toutes les options à leurs valeurs par défaut
+gsettings reset org.gnome.shell.extensions.dock position
 gsettings reset org.gnome.shell.extensions.dock autohide
 gsettings reset org.gnome.shell.extensions.dock enable-wave-effect
 gsettings reset org.gnome.shell.extensions.dock super-key-opens-launcher

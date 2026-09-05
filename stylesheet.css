@@ -905,3 +905,130 @@
     background-color: rgba(111, 131, 150, 0.18);
     box-shadow: inset 0 0 0 1px rgba(111, 131, 150, 0.50);
 }
+
+/* ==========================================================================
+   Dock Position Adaptations (Bottom, Left, Right)
+   ========================================================================== */
+
+/* Bottom Position (Default) */
+.position-bottom.arrera-dock {
+    padding: 5px 16px;
+    margin-bottom: 0;
+}
+.position-bottom .dock-separator {
+    width: 2px;
+    height: 26px;
+    margin: 3px 6px;
+}
+.position-bottom .dock-app-icon {
+    padding: 4px 6px;
+}
+.position-bottom .show-apps-button {
+    padding: 4px 10px;
+}
+
+/* Left Position */
+.position-left.arrera-dock {
+    padding: 16px 5px;
+    margin-left: 0;
+    margin-bottom: 0;
+}
+.position-left .dock-separator {
+    width: 26px;
+    height: 2px;
+    margin: 6px 3px;
+}
+.position-left .dock-app-icon {
+    padding: 6px 4px;
+}
+.position-left .show-apps-button {
+    padding: 10px 4px;
+}
+.position-left .dock-app-icon .app-grid-running-dot {
+    width: 3.5px;
+    height: 8px;
+    margin-left: 1px;
+    margin-bottom: 0;
+}
+.position-left .dock-app-icon .app-grid-running-dot.focused {
+    width: 4px;
+    height: 22px;
+}
+
+/* Right Position */
+.position-right.arrera-dock {
+    padding: 16px 5px;
+    margin-right: 0;
+    margin-bottom: 0;
+}
+.position-right .dock-separator {
+    width: 26px;
+    height: 2px;
+    margin: 6px 3px;
+}
+.position-right .dock-app-icon {
+    padding: 6px 4px;
+}
+.position-right .show-apps-button {
+    padding: 10px 4px;
+}
+.position-right .dock-app-icon .app-grid-running-dot {
+    width: 3.5px;
+    height: 8px;
+    margin-right: 1px;
+    margin-bottom: 0;
+}
+.position-right .dock-app-icon .app-grid-running-dot.focused {
+    width: 4px;
+    height: 22px;
+}
+
+/* Vertical Sizing: Small (28px) */
+.position-left.size-small.arrera-dock,
+.position-right.size-small.arrera-dock {
+    padding: 12px 3px;
+}
+.position-left.size-small .dock-separator,
+.position-right.size-small .dock-separator {
+    width: 20px;
+    height: 2px;
+}
+.position-left.size-small .show-apps-button,
+.position-right.size-small .show-apps-button {
+    padding: 6px 2px;
+}
+.position-left.size-small .dock-app-icon .app-grid-running-dot,
+.position-right.size-small .dock-app-icon .app-grid-running-dot {
+    width: 3px;
+    height: 6px;
+}
+.position-left.size-small .dock-app-icon .app-grid-running-dot.focused,
+.position-right.size-small .dock-app-icon .app-grid-running-dot.focused {
+    width: 3.5px;
+    height: 16px;
+}
+
+/* Vertical Sizing: Large (48px) */
+.position-left.size-large.arrera-dock,
+.position-right.size-large.arrera-dock {
+    padding: 20px 6px;
+}
+.position-left.size-large .dock-separator,
+.position-right.size-large .dock-separator {
+    width: 32px;
+    height: 2px;
+}
+.position-left.size-large .show-apps-button,
+.position-right.size-large .show-apps-button {
+    padding: 12px 6px;
+}
+.position-left.size-large .dock-app-icon .app-grid-running-dot,
+.position-right.size-large .dock-app-icon .app-grid-running-dot {
+    width: 4px;
+    height: 10px;
+}
+.position-left.size-large .dock-app-icon .app-grid-running-dot.focused,
+.position-right.size-large .dock-app-icon .app-grid-running-dot.focused {
+    width: 4.5px;
+    height: 26px;
+}

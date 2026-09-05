@@ -65,9 +65,8 @@ class DockAppIcon extends Dash.DashIcon {
         this.icon.setIconSize(iconSize);
         this.label_actor = null;
         this.add_style_class_name('dock-app-icon');
-        this.set_pivot_point(0.5, 1.0);
-
         this._tooltip = null;
+        this.updatePositionStyle(this._dock?._position || 'bottom');
 
         this.connect('notify::hover', () => {
             if (this.hover && (!this._menu || !this._menu.isOpen)) {
@@ -112,6 +111,36 @@ class DockAppIcon extends Dash.DashIcon {
         }
     }
 
+    updatePositionStyle(position) {
+        if (position === 'left') {
+            this.set_pivot_point(0.0, 0.5);
+            this._popupMenuSide = St.Side.RIGHT;
+            if (this._dot) {
+                this._dot.x_align = Clutter.ActorAlign.START;
+                this._dot.y_align = Clutter.ActorAlign.CENTER;
+            }
+        } else if (position === 'right') {
+            this.set_pivot_point(1.0, 0.5);
+            this._popupMenuSide = St.Side.LEFT;
+            if (this._dot) {
+                this._dot.x_align = Clutter.ActorAlign.END;
+                this._dot.y_align = Clutter.ActorAlign.CENTER;
+            }
+        } else {
+            this.set_pivot_point(0.5, 1.0);
+            this._popupMenuSide = St.Side.BOTTOM;
+            if (this._dot) {
+                this._dot.x_align = Clutter.ActorAlign.CENTER;
+                this._dot.y_align = Clutter.ActorAlign.END;
+            }
+        }
+
+        if (this._menu) {
+            this._menu.destroy();
+            this._menu = null;
+        }
+    }
+
     _showTooltip() {
         if (!this.get_stage() || !this.app)
             return;
@@ -129,14 +158,8 @@ class DockAppIcon extends Dash.DashIcon {
 
         this._tooltip.opacity = 0;
         this._tooltip.show();
+        this.updateTooltipPosition();
 
-        const [stageX, stageY] = this.get_transformed_position();
-        const [w] = this.get_transformed_size();
-        const [tw, th] = this._tooltip.get_preferred_size();
-        const x = Math.round(stageX + (w - tw) / 2);
-        const y = Math.round(stageY - th - 8);
-
-        this._tooltip.set_position(x, y);
         this._tooltip.ease({
             opacity: 255,
             duration: 150,
@@ -149,10 +172,21 @@ class DockAppIcon extends Dash.DashIcon {
             return;
 
         const [stageX, stageY] = this.get_transformed_position();
-        const [w] = this.get_transformed_size();
+        const [w, h] = this.get_transformed_size();
         const [tw, th] = this._tooltip.get_preferred_size();
-        const x = Math.round(stageX + (w - tw) / 2);
-        const y = Math.round(stageY - th - 8);
+        const pos = this._dock?._position || 'bottom';
+
+        let x, y;
+        if (pos === 'left') {
+            x = Math.round(stageX + w + 8);
+            y = Math.round(stageY + (h - th) / 2);
+        } else if (pos === 'right') {
+            x = Math.round(stageX - tw - 8);
+            y = Math.round(stageY + (h - th) / 2);
+        } else {
+            x = Math.round(stageX + (w - tw) / 2);
+            y = Math.round(stageY - th - 8);
+        }
         this._tooltip.set_position(x, y);
     }
 
@@ -289,9 +323,8 @@ class ShowAppsButton extends St.Button {
         this._iconSize = iconSize;
         this._icon = this._createIcon(iconSize);
         this.set_child(this._icon);
-        this.set_pivot_point(0.5, 1.0);
-
         this._tooltip = null;
+        this.updatePositionStyle(this._dock?._position || 'bottom');
 
         this.connect('clicked', () => this._onClicked());
         this.connect('notify::hover', () => {
@@ -363,6 +396,16 @@ class ShowAppsButton extends St.Button {
         this._dock.toggleAppLauncher();
     }
 
+    updatePositionStyle(position) {
+        if (position === 'left') {
+            this.set_pivot_point(0.0, 0.5);
+        } else if (position === 'right') {
+            this.set_pivot_point(1.0, 0.5);
+        } else {
+            this.set_pivot_point(0.5, 1.0);
+        }
+    }
+
     _showTooltip() {
         if (!this.get_stage())
             return;
@@ -380,14 +423,8 @@ class ShowAppsButton extends St.Button {
 
         this._tooltip.opacity = 0;
         this._tooltip.show();
+        this.updateTooltipPosition();
 
-        const [stageX, stageY] = this.get_transformed_position();
-        const [w] = this.get_transformed_size();
-        const [tw, th] = this._tooltip.get_preferred_size();
-        const x = Math.round(stageX + (w - tw) / 2);
-        const y = Math.round(stageY - th - 8);
-
-        this._tooltip.set_position(x, y);
         this._tooltip.ease({
             opacity: 255,
             duration: 150,
@@ -400,10 +437,21 @@ class ShowAppsButton extends St.Button {
             return;
 
         const [stageX, stageY] = this.get_transformed_position();
-        const [w] = this.get_transformed_size();
+        const [w, h] = this.get_transformed_size();
         const [tw, th] = this._tooltip.get_preferred_size();
-        const x = Math.round(stageX + (w - tw) / 2);
-        const y = Math.round(stageY - th - 8);
+        const pos = this._dock?._position || 'bottom';
+
+        let x, y;
+        if (pos === 'left') {
+            x = Math.round(stageX + w + 8);
+            y = Math.round(stageY + (h - th) / 2);
+        } else if (pos === 'right') {
+            x = Math.round(stageX - tw - 8);
+            y = Math.round(stageY + (h - th) / 2);
+        } else {
+            x = Math.round(stageX + (w - tw) / 2);
+            y = Math.round(stageY - th - 8);
+        }
         this._tooltip.set_position(x, y);
     }
 
@@ -455,6 +503,9 @@ class ArreraDock extends St.Widget {
         // Wave effect
         this._enableWaveEffect = true;
 
+        // Position: bottom, left, right
+        this._position = 'bottom';
+
         // Autohide state
         this._autohide = false;
         this._autohideTimeoutId = 0;
@@ -476,8 +527,8 @@ class ArreraDock extends St.Widget {
         this.add_child(this._dockPill);
 
         this._dockPill.connect('motion-event', (_actor, event) => {
-            const [stageX] = event.get_coords();
-            this._applyWaveMagnification(stageX);
+            const [stageX, stageY] = event.get_coords();
+            this._applyWaveMagnification(stageX, stageY);
             return Clutter.EVENT_PROPAGATE;
         });
 
@@ -573,12 +624,14 @@ class ArreraDock extends St.Widget {
                 'changed::enable-wave-effect', () => this._syncWaveEffect(),
                 'changed::icon-size', () => this._syncIconSize(true),
                 'changed::theme-mode', () => this._syncThemeMode(),
+                'changed::position', () => this._syncPosition(),
                 this
             );
         }
 
         // Initial synchronization of settings
         this._syncIconSize(false);
+        this._syncPosition();
         this._syncWaveEffect();
         this._syncThemeMode();
         this._syncAutohide();
@@ -619,6 +672,7 @@ class ArreraDock extends St.Widget {
         this.show();
         this._dockPill.remove_all_transitions();
         this._dockPill.opacity = 255;
+        this._dockPill.translation_x = 0;
         this._dockPill.translation_y = 0;
         this._dockPill.reactive = true;
         this._resetWaveMagnification();
@@ -659,16 +713,36 @@ class ArreraDock extends St.Widget {
             factor = Math.max(0, Math.min(1, val - 1.0));
         }
 
+        const pos = this._position || 'bottom';
         if (factor <= 0.01) {
             this._hideTooltips();
             this._dockPill.opacity = 0;
-            this._dockPill.translation_y = 30;
+            if (pos === 'left') {
+                this._dockPill.translation_x = -30;
+                this._dockPill.translation_y = 0;
+            } else if (pos === 'right') {
+                this._dockPill.translation_x = 30;
+                this._dockPill.translation_y = 0;
+            } else {
+                this._dockPill.translation_y = 30;
+                this._dockPill.translation_x = 0;
+            }
             this._dockPill.reactive = false;
             this.hide();
         } else {
             this.show();
             this._dockPill.opacity = Math.round(255 * factor);
-            this._dockPill.translation_y = Math.round((1.0 - factor) * 30);
+            const offset = Math.round((1.0 - factor) * 30);
+            if (pos === 'left') {
+                this._dockPill.translation_x = -offset;
+                this._dockPill.translation_y = 0;
+            } else if (pos === 'right') {
+                this._dockPill.translation_x = offset;
+                this._dockPill.translation_y = 0;
+            } else {
+                this._dockPill.translation_y = offset;
+                this._dockPill.translation_x = 0;
+            }
             this._dockPill.reactive = factor >= 0.8;
         }
     }
@@ -691,7 +765,7 @@ class ArreraDock extends St.Widget {
         return items;
     }
 
-    _applyWaveMagnification(stageX) {
+    _applyWaveMagnification(stageX, stageY) {
         if (!this._enableWaveEffect)
             return;
 
@@ -702,31 +776,66 @@ class ArreraDock extends St.Widget {
         const maxScale = this._waveMaxScale || WAVE_MAX_SCALE;
         const radius = this._waveRadius || WAVE_RADIUS;
         const maxShift = this._waveMaxShift || WAVE_MAX_SHIFT;
+        const pos = this._position || 'bottom';
+        const isVertical = pos === 'left' || pos === 'right';
 
         for (const item of items) {
             item.remove_all_transitions();
 
-            const [itemX] = item.get_transformed_position();
-            const [itemW] = item.get_transformed_size();
-            const itemBaseWidth = item.width || itemW;
-            const itemCenterX = itemX + itemBaseWidth / 2 - (item.translation_x || 0);
+            if (isVertical) {
+                const [, itemY] = item.get_transformed_position();
+                const [, itemH] = item.get_transformed_size();
+                const itemBaseHeight = item.height || itemH;
+                const itemCenterY = itemY + itemBaseHeight / 2 - (item.translation_y || 0);
 
-            const dx = Math.abs(stageX - itemCenterX);
+                const dy = Math.abs(stageY - itemCenterY);
 
-            if (dx < radius) {
-                const factor = 0.5 * (1 + Math.cos((Math.PI * dx) / radius));
-                const scale = 1.0 + (maxScale - 1.0) * factor;
+                if (dy < radius) {
+                    const factor = 0.5 * (1 + Math.cos((Math.PI * dy) / radius));
+                    const scale = 1.0 + (maxScale - 1.0) * factor;
 
-                const direction = itemCenterX >= stageX ? 1 : -1;
-                const shiftFactor = Math.sin((Math.PI * dx) / radius);
-                const shiftX = direction * maxShift * shiftFactor;
+                    const direction = itemCenterY >= stageY ? 1 : -1;
+                    const shiftFactor = Math.sin((Math.PI * dy) / radius);
+                    const shiftY = direction * maxShift * shiftFactor;
 
-                item.set_pivot_point(0.5, 1.0);
-                item.set_scale(scale, scale);
-                item.translation_x = Math.round(shiftX);
+                    if (pos === 'left')
+                        item.set_pivot_point(0.0, 0.5);
+                    else
+                        item.set_pivot_point(1.0, 0.5);
+
+                    item.set_scale(scale, scale);
+                    item.translation_y = Math.round(shiftY);
+                    item.translation_x = 0;
+                } else {
+                    item.set_scale(1.0, 1.0);
+                    item.translation_y = 0;
+                    item.translation_x = 0;
+                }
             } else {
-                item.set_scale(1.0, 1.0);
-                item.translation_x = 0;
+                const [itemX] = item.get_transformed_position();
+                const [itemW] = item.get_transformed_size();
+                const itemBaseWidth = item.width || itemW;
+                const itemCenterX = itemX + itemBaseWidth / 2 - (item.translation_x || 0);
+
+                const dx = Math.abs(stageX - itemCenterX);
+
+                if (dx < radius) {
+                    const factor = 0.5 * (1 + Math.cos((Math.PI * dx) / radius));
+                    const scale = 1.0 + (maxScale - 1.0) * factor;
+
+                    const direction = itemCenterX >= stageX ? 1 : -1;
+                    const shiftFactor = Math.sin((Math.PI * dx) / radius);
+                    const shiftX = direction * maxShift * shiftFactor;
+
+                    item.set_pivot_point(0.5, 1.0);
+                    item.set_scale(scale, scale);
+                    item.translation_x = Math.round(shiftX);
+                    item.translation_y = 0;
+                } else {
+                    item.set_scale(1.0, 1.0);
+                    item.translation_x = 0;
+                    item.translation_y = 0;
+                }
             }
 
             item.updateTooltipPosition?.();
@@ -740,6 +849,7 @@ class ArreraDock extends St.Widget {
                 scale_x: 1.0,
                 scale_y: 1.0,
                 translation_x: 0,
+                translation_y: 0,
                 duration: 220,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             });
@@ -820,15 +930,11 @@ class ArreraDock extends St.Widget {
 
     _showDock() {
         this._isDockHidden = false;
-        const monitor = Main.layoutManager.primaryMonitor;
-        if (monitor) {
-            const dockHeight = this.getPreferredHeight();
-            this.set_position(monitor.x, monitor.y + monitor.height - dockHeight);
-            this.set_size(monitor.width, dockHeight);
-        }
+        this.updatePosition();
 
         this._dockPill.remove_all_transitions();
         this._dockPill.ease({
+            translation_x: 0,
             translation_y: 0,
             opacity: 255,
             duration: 220,
@@ -841,21 +947,29 @@ class ArreraDock extends St.Widget {
         this._resetWaveMagnification();
         this._hideTooltips();
 
-        const dockHeight = this.getPreferredHeight();
+        const thickness = this.getPreferredThickness();
+        const pos = this._position || 'bottom';
+
+        let targetX = 0;
+        let targetY = 0;
+        if (pos === 'left') {
+            targetX = -(thickness + 10);
+        } else if (pos === 'right') {
+            targetX = thickness + 10;
+        } else {
+            targetY = thickness + 10;
+        }
+
         this._dockPill.remove_all_transitions();
         this._dockPill.ease({
-            translation_y: dockHeight + 10,
+            translation_x: targetX,
+            translation_y: targetY,
             opacity: 0,
             duration: 250,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {
                 if (this._isDockHidden && this._autohide) {
-                    const monitor = Main.layoutManager.primaryMonitor;
-                    if (monitor) {
-                        // Narrow bottom trigger area so windows remain completely clickable
-                        this.set_position(monitor.x, monitor.y + monitor.height - 4);
-                        this.set_size(monitor.width, 4);
-                    }
+                    this.updatePosition();
                 }
             },
         });
@@ -919,6 +1033,49 @@ class ArreraDock extends St.Widget {
             this._redisplay();
     }
 
+    _syncPosition() {
+        const position = this._settings?.get_string('position') || 'bottom';
+        const validPositions = ['bottom', 'left', 'right'];
+        this._position = validPositions.includes(position) ? position : 'bottom';
+
+        for (const p of validPositions) {
+            this.remove_style_class_name(`position-${p}`);
+            this._dockPill?.remove_style_class_name(`position-${p}`);
+        }
+        this.add_style_class_name(`position-${this._position}`);
+        this._dockPill?.add_style_class_name(`position-${this._position}`);
+
+        const isVertical = this._position === 'left' || this._position === 'right';
+
+        this._dockPill.vertical = isVertical;
+        this._iconsBox.vertical = isVertical;
+
+        if (this._position === 'bottom') {
+            this._dockPill.x_align = Clutter.ActorAlign.CENTER;
+            this._dockPill.y_align = Clutter.ActorAlign.END;
+            this._appsSeparator.y_align = Clutter.ActorAlign.CENTER;
+            this._appsSeparator.x_align = Clutter.ActorAlign.FILL;
+        } else if (this._position === 'left') {
+            this._dockPill.x_align = Clutter.ActorAlign.START;
+            this._dockPill.y_align = Clutter.ActorAlign.CENTER;
+            this._appsSeparator.x_align = Clutter.ActorAlign.CENTER;
+            this._appsSeparator.y_align = Clutter.ActorAlign.FILL;
+        } else if (this._position === 'right') {
+            this._dockPill.x_align = Clutter.ActorAlign.END;
+            this._dockPill.y_align = Clutter.ActorAlign.CENTER;
+            this._appsSeparator.x_align = Clutter.ActorAlign.CENTER;
+            this._appsSeparator.y_align = Clutter.ActorAlign.FILL;
+        }
+
+        for (const icon of this._appIcons.values()) {
+            icon.updatePositionStyle?.(this._position);
+        }
+        this._showAppsButton?.updatePositionStyle?.(this._position);
+
+        this.updatePosition();
+        this._extension?.updateChromeStruts?.(!this._autohide);
+    }
+
     _syncThemeMode() {
         const mode = this._settings?.get_string('theme-mode') || 'expressive';
         this.remove_style_class_name('theme-expressive');
@@ -951,8 +1108,12 @@ class ArreraDock extends St.Widget {
         this._extension?.toggleAppLauncher?.();
     }
 
-    getPreferredHeight() {
+    getPreferredThickness() {
         return this._dockHeight || DOCK_HEIGHT;
+    }
+
+    getPreferredHeight() {
+        return this.getPreferredThickness();
     }
 
     updatePosition() {
@@ -960,13 +1121,34 @@ class ArreraDock extends St.Widget {
         if (!monitor)
             return;
 
-        const dockHeight = this.getPreferredHeight();
-        if (this._autohide && this._isDockHidden) {
-            this.set_position(monitor.x, monitor.y + monitor.height - 4);
-            this.set_size(monitor.width, 4);
+        const thickness = this.getPreferredThickness();
+        const pos = this._position || 'bottom';
+
+        if (pos === 'left') {
+            if (this._autohide && this._isDockHidden) {
+                this.set_position(monitor.x, monitor.y);
+                this.set_size(4, monitor.height);
+            } else {
+                this.set_position(monitor.x, monitor.y);
+                this.set_size(thickness, monitor.height);
+            }
+        } else if (pos === 'right') {
+            if (this._autohide && this._isDockHidden) {
+                this.set_position(monitor.x + monitor.width - 4, monitor.y);
+                this.set_size(4, monitor.height);
+            } else {
+                this.set_position(monitor.x + monitor.width - thickness, monitor.y);
+                this.set_size(thickness, monitor.height);
+            }
         } else {
-            this.set_position(monitor.x, monitor.y + monitor.height - dockHeight);
-            this.set_size(monitor.width, dockHeight);
+            // Default: bottom
+            if (this._autohide && this._isDockHidden) {
+                this.set_position(monitor.x, monitor.y + monitor.height - 4);
+                this.set_size(monitor.width, 4);
+            } else {
+                this.set_position(monitor.x, monitor.y + monitor.height - thickness);
+                this.set_size(monitor.width, thickness);
+            }
         }
     }
 
@@ -1012,8 +1194,14 @@ class ArreraDock extends St.Widget {
             if (!this._separator) {
                 this._separator = new St.Widget({
                     style_class: 'dock-separator',
-                    y_align: Clutter.ActorAlign.CENTER,
                 });
+            }
+            if (this._position === 'left' || this._position === 'right') {
+                this._separator.x_align = Clutter.ActorAlign.CENTER;
+                this._separator.y_align = Clutter.ActorAlign.FILL;
+            } else {
+                this._separator.y_align = Clutter.ActorAlign.CENTER;
+                this._separator.x_align = Clutter.ActorAlign.FILL;
             }
             this._iconsBox.add_child(this._separator);
         }
@@ -1028,6 +1216,7 @@ class ArreraDock extends St.Widget {
             } else {
                 icon.setIconSize(this._iconSize);
             }
+            icon.updatePositionStyle?.(this._position || 'bottom');
             this._iconsBox.add_child(icon);
         }
 
@@ -1042,7 +1231,7 @@ class ArreraDock extends St.Widget {
     }
 
     // Drag-and-drop support: reorder favorites inside Arrera Dock
-    handleDragOver(source, _actor, x, _y, _step) {
+    handleDragOver(source, _actor, x, y, _step) {
         const app = source.app;
         if (!app)
             return DND.DragMotionResult.NO_DROP;
@@ -1050,7 +1239,7 @@ class ArreraDock extends St.Widget {
         return DND.DragMotionResult.MOVE_DROP;
     }
 
-    acceptDrop(source, _actor, x, _y, _time) {
+    acceptDrop(source, _actor, x, y, _time) {
         const app = source.app;
         if (!app)
             return false;
@@ -1058,8 +1247,12 @@ class ArreraDock extends St.Widget {
         const id = app.get_id();
         const favorites = this._appFavorites.getFavorites();
 
+        const isVertical = this._position === 'left' || this._position === 'right';
+        const coord = isVertical ? y : x;
+        const totalSize = isVertical ? this._iconsBox.height : this._iconsBox.width;
+
         let pos = Math.min(
-            Math.floor((x / Math.max(1, this._iconsBox.width)) * favorites.length),
+            Math.floor((coord / Math.max(1, totalSize)) * favorites.length),
             favorites.length
         );
 

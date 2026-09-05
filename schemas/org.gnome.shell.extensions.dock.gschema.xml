@@ -41,5 +41,16 @@
       <description>Style d'application de la couleur : expressive (fond du dock teinté) ou black-outline (fond noir avec contour de la couleur d'accentuation).</description>
     </key>
 
+    <key name="position" type="s">
+      <choices>
+        <choice value="bottom"/>
+        <choice value="left"/>
+        <choice value="right"/>
+      </choices>
+      <default>'bottom'</default>
+      <summary>Position du dock sur l'écran</summary>
+      <description>Position du dock à l'écran : bottom (en bas), left (à gauche), right (à droite).</description>
+    </key>
+
   </schema>
 </schemalist>
