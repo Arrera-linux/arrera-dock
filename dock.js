@@ -79,8 +79,11 @@ class DockAppIcon extends Dash.DashIcon {
 
         // Hide tooltip when context menu opens & notify dock for autohide
         this.connect('menu-state-changed', (_actor, opened) => {
-            if (opened)
+            if (opened) {
                 this._hideTooltip();
+                if (this._dock?._appLauncher?.isOpen)
+                    this._dock._appLauncher.close();
+            }
             this._dock?._onMenuStateChanged?.(opened);
         });
 
@@ -170,6 +173,9 @@ class DockAppIcon extends Dash.DashIcon {
 
     activate(button) {
         this._hideTooltip();
+
+        if (this._dock?._appLauncher?.isOpen)
+            this._dock._appLauncher.close();
 
         const event = Clutter.get_current_event();
         const modifiers = event ? event.get_state() : 0;
@@ -484,6 +490,14 @@ class ArreraDock extends St.Widget {
             return Clutter.EVENT_PROPAGATE;
         });
 
+        this._dockPill.connect('button-press-event', (_actor, event) => {
+            if (event.get_source() === this._dockPill && this._appLauncher?.isOpen) {
+                this._appLauncher.close();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
         this._dockPill.connect('notify::hover', () => {
             if (this._dockPill.hover) {
                 this._onEnter();
@@ -747,6 +761,8 @@ class ArreraDock extends St.Widget {
         appLauncher.connectObject(
             'opened', () => {
                 this._showAppsButton.add_style_pseudo_class('checked');
+                if (Main.uiGroup.contains(this))
+                    Main.uiGroup.set_child_above_sibling(this, appLauncher);
                 if (this._autohide)
                     this._showDock();
             },

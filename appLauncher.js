@@ -97,6 +97,10 @@ class MacAppItem extends St.Button {
         }
     }
 
+    activate() {
+        this._activate();
+    }
+
     get app() {
         return this._app;
     }
@@ -123,6 +127,7 @@ export const AppLaucher = GObject.registerClass({
         this._extension = extension;
         this._grab = null;
         this._isOpen = false;
+        this._prevKeyFocus = null;
         this._allApps = [];
 
         // Backdrop to catch outside clicks and dismiss
@@ -133,6 +138,16 @@ export const AppLaucher = GObject.registerClass({
         });
         this._backdrop.connect('button-press-event', (_actor, event) => {
             if (event.get_source() === this._backdrop) {
+                const [x, y] = event.get_coords();
+                const dock = this._extension?.dock || this._extension?._dock;
+                if (dock && dock.visible) {
+                    const [dx, dy] = dock.get_transformed_position();
+                    const [dw, dh] = dock.get_transformed_size();
+                    if (x >= dx && x <= dx + dw && y >= dy && y <= dy + dh) {
+                        this.close();
+                        return Clutter.EVENT_PROPAGATE;
+                    }
+                }
                 this.close();
                 return Clutter.EVENT_STOP;
             }
@@ -209,6 +224,25 @@ export const AppLaucher = GObject.registerClass({
             x_expand: true,
         });
         this._searchEntry.clutter_text.connect('text-changed', () => this._refilterApps());
+        this._searchEntry.clutter_text.connect('key-press-event', (_actor, event) => {
+            const symbol = event.get_key_symbol();
+            if (symbol === Clutter.KEY_Escape) {
+                if (this._searchEntry.get_text().length > 0)
+                    this._searchEntry.set_text('');
+                else
+                    this.close();
+                return Clutter.EVENT_STOP;
+            }
+            if (symbol === Clutter.KEY_Super_L || symbol === Clutter.KEY_Super_R) {
+                this.close();
+                return Clutter.EVENT_STOP;
+            }
+            if (symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter || symbol === Clutter.KEY_ISO_Enter) {
+                this._launchFirstApp();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
         header.add_child(this._searchEntry);
 
         // Close button (...)
@@ -348,6 +382,18 @@ export const AppLaucher = GObject.registerClass({
         this._window.set_size(w, h);
     }
 
+    _launchFirstApp() {
+        const rows = this._gridBox?.get_children?.() || [];
+        for (const row of rows) {
+            for (const child of row.get_children()) {
+                if (child instanceof MacAppItem) {
+                    child.activate();
+                    return;
+                }
+            }
+        }
+    }
+
     open() {
         if (this._isOpen)
             return;
@@ -366,8 +412,13 @@ export const AppLaucher = GObject.registerClass({
         if (adj)
             adj.value = 0;
 
-        // Modal grab with ActionMode.ALL to allow seamless application activation
-        this._grab = Main.pushModal(this, { actionMode: Shell.ActionMode.ALL });
+        // Keep dock on top of launcher in uiGroup so icons remain fully clickable
+        const dock = this._extension?.dock || this._extension?._dock;
+        if (dock && Main.uiGroup.contains(dock))
+            Main.uiGroup.set_child_above_sibling(dock, this);
+
+        // Save previous key focus to restore cleanly on close
+        this._prevKeyFocus = global.stage.get_key_focus();
 
         this.opacity = 0;
         this.visible = true;
@@ -398,10 +449,17 @@ export const AppLaucher = GObject.registerClass({
 
         this._isOpen = false;
 
-        if (this._grab) {
-            Main.popModal(this._grab);
-            this._grab = null;
+        // Restore previous keyboard focus
+        if (this._prevKeyFocus && !this._prevKeyFocus.is_finalized?.()) {
+            try {
+                this._prevKeyFocus.grab_key_focus();
+            } catch (_e) {
+                // Previous focus actor may have been destroyed
+            }
+        } else {
+            global.stage.set_key_focus(null);
         }
+        this._prevKeyFocus = null;
 
         this.ease({
             opacity: 0,
@@ -449,6 +507,7 @@ export const AppLaucher = GObject.registerClass({
 
     destroy() {
         this.close();
+        this._prevKeyFocus = null;
         if (this._interfaceSettings) {
             this._interfaceSettings.disconnectObject(this);
             this._interfaceSettings = null;

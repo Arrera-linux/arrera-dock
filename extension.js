@@ -64,6 +64,10 @@ export default class ArreraDockExtension extends Extension {
         return this._appLauncher;
     }
 
+    get dock() {
+        return this._dock;
+    }
+
     toggleAppLauncher() {
         if (Main.overview.visible)
             Main.overview.hide();
