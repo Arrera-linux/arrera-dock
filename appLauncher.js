@@ -16,6 +16,10 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
+import { AppMenu } from 'resource:///org/gnome/shell/ui/appMenu.js';
+import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 const COLUMNS = 7;
 const ICON_SIZE = 56;
@@ -39,6 +43,8 @@ class MacAppItem extends St.Button {
 
         this._app = app;
         this._launcher = launcher;
+        this._menu = null;
+        this._menuManager = null;
 
         const container = new St.BoxLayout({
             vertical: true,
@@ -73,13 +79,102 @@ class MacAppItem extends St.Button {
         container.add_child(label);
 
         this.connect('clicked', () => this._activate());
+
+        // Right-click event handler
+        this.connect('button-press-event', (_actor, event) => {
+            if (event.get_button() === Clutter.BUTTON_SECONDARY) {
+                this.popupMenu();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        // Long press gesture for touch / stylus
+        const longPress = new Clutter.LongPressGesture();
+        longPress.connect('recognize', () => this.popupMenu());
+        this.add_action(longPress);
+
+        this.connect('destroy', () => this._onDestroy());
     }
 
-    vfunc_clicked(_button) {
+    vfunc_clicked(button) {
+        if (button === Clutter.BUTTON_SECONDARY) {
+            this.popupMenu();
+            return;
+        }
         this._activate();
     }
 
+    popupMenu() {
+        if (this._menu && this._menu.isOpen) {
+            this._menu.close();
+            return;
+        }
+
+        if (!this._menu) {
+            this._menu = new AppMenu(this, St.Side.TOP, {
+                favoritesSection: true,
+                showSingleWindows: true,
+            });
+            this._menu.setApp(this._app);
+
+            const origUpdateFavoriteItem = this._menu._updateFavoriteItem.bind(this._menu);
+            this._menu._updateFavoriteItem = () => {
+                origUpdateFavoriteItem();
+                if (this._menu?._toggleFavoriteItem?.visible) {
+                    const isFav = AppFavorites.getAppFavorites().isFavorite(this._app.get_id());
+                    this._menu._toggleFavoriteItem.label.text = isFav
+                        ? 'Détacher du dock'
+                        : 'Épingler au dock';
+                }
+            };
+
+            this._menu.connect('open-state-changed', (_menu, open) => {
+                if (open) {
+                    this._menu._updateFavoriteItem?.();
+                    this._launcher._activeMenu = this._menu;
+                } else {
+                    if (this._launcher._activeMenu === this._menu)
+                        this._launcher._activeMenu = null;
+                }
+            });
+
+            this._menu.connect('activate', (_menu, item) => {
+                if (item !== this._menu?._toggleFavoriteItem) {
+                    this._launcher.close();
+                } else {
+                    this._menu?._updateFavoriteItem?.();
+                }
+            });
+
+            Main.uiGroup.add_child(this._menu.actor);
+            this._menuManager = new PopupMenu.PopupMenuManager(this);
+            this._menuManager.addMenu(this._menu);
+        }
+
+        this._menu._updateFavoriteItem?.();
+        this._menu.open(BoxPointer.PopupAnimation.FULL);
+    }
+
+    _onDestroy() {
+        if (this._menu) {
+            try {
+                this._menu.close();
+                this._menu.destroy();
+            } catch (_e) {
+                // Ignore
+            } finally {
+                this._menu = null;
+                this._menuManager = null;
+            }
+        }
+    }
+
     _activate() {
+        if (this._menu && this._menu.isOpen) {
+            this._menu.close();
+            return;
+        }
         this._launcher.close();
         try {
             if (this._app.can_open_new_window() && this._app.state === Shell.AppState.RUNNING) {
@@ -129,6 +224,7 @@ export const AppLaucher = GObject.registerClass({
         this._isOpen = false;
         this._prevKeyFocus = null;
         this._allApps = [];
+        this._activeMenu = null;
 
         // Backdrop to catch outside clicks and dismiss
         this._backdrop = new Clutter.Actor({
@@ -332,6 +428,11 @@ export const AppLaucher = GObject.registerClass({
     }
 
     _refilterApps() {
+        if (this._activeMenu) {
+            this._activeMenu.close();
+            this._activeMenu = null;
+        }
+
         this._gridBox.destroy_all_children();
 
         const query = this._searchEntry.get_text().trim().toLowerCase();
@@ -446,6 +547,11 @@ export const AppLaucher = GObject.registerClass({
     close() {
         if (!this._isOpen)
             return;
+
+        if (this._activeMenu) {
+            this._activeMenu.close();
+            this._activeMenu = null;
+        }
 
         this._isOpen = false;
 

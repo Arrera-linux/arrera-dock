@@ -16,6 +16,8 @@ import St from 'gi://St';
 
 import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
 import * as AppDisplay from 'resource:///org/gnome/shell/ui/appDisplay.js';
+import { AppMenu } from 'resource:///org/gnome/shell/ui/appMenu.js';
+import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 import * as Dash from 'resource:///org/gnome/shell/ui/dash.js';
 import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -86,9 +88,33 @@ class DockAppIcon extends Dash.DashIcon {
             this._dock?._onMenuStateChanged?.(opened);
         });
 
+        // Right-click event handler
+        this.connect('button-press-event', (_actor, event) => {
+            if (event.get_button() === Clutter.BUTTON_SECONDARY) {
+                this.popupMenu();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        const rightClickGesture = new Clutter.ClickGesture({
+            required_button: Clutter.BUTTON_SECONDARY,
+            recognize_on_press: true,
+        });
+        rightClickGesture.connect('recognize', () => this.popupMenu());
+        this.add_action(rightClickGesture);
+
         this.connect('destroy', () => {
             this._cleanupTooltip();
         });
+    }
+
+    vfunc_clicked(button) {
+        if (button === Clutter.BUTTON_SECONDARY) {
+            this.popupMenu();
+            return;
+        }
+        this.activate(button);
     }
 
     setIconSize(size) {
@@ -114,14 +140,14 @@ class DockAppIcon extends Dash.DashIcon {
     updatePositionStyle(position) {
         if (position === 'left') {
             this.set_pivot_point(0.0, 0.5);
-            this._popupMenuSide = St.Side.RIGHT;
+            this._popupMenuSide = St.Side.LEFT;
             if (this._dot) {
                 this._dot.x_align = Clutter.ActorAlign.START;
                 this._dot.y_align = Clutter.ActorAlign.CENTER;
             }
         } else if (position === 'right') {
             this.set_pivot_point(1.0, 0.5);
-            this._popupMenuSide = St.Side.LEFT;
+            this._popupMenuSide = St.Side.RIGHT;
             if (this._dot) {
                 this._dot.x_align = Clutter.ActorAlign.END;
                 this._dot.y_align = Clutter.ActorAlign.CENTER;
@@ -139,6 +165,48 @@ class DockAppIcon extends Dash.DashIcon {
             this._menu.destroy();
             this._menu = null;
         }
+    }
+
+    popupMenu() {
+        this._hideTooltip();
+        this.setForcedHighlight(true);
+
+        if (!this._menu) {
+            this._menu = new AppMenu(this, this._popupMenuSide, {
+                favoritesSection: true,
+                showSingleWindows: true,
+            });
+            this._menu.setApp(this.app);
+
+            const origUpdateFavoriteItem = this._menu._updateFavoriteItem.bind(this._menu);
+            this._menu._updateFavoriteItem = () => {
+                origUpdateFavoriteItem();
+                if (this._menu?._toggleFavoriteItem?.visible) {
+                    const isFav = this._dock?._appFavorites?.isFavorite(this.app.get_id());
+                    this._menu._toggleFavoriteItem.label.text = isFav
+                        ? 'Détacher du dock'
+                        : 'Épingler au dock';
+                }
+            };
+
+            this._menu.connect('open-state-changed', (_menu, isPoppedUp) => {
+                if (!isPoppedUp)
+                    this._onMenuPoppedDown();
+            });
+            Main.overview.connectObject('hiding',
+                () => this._menu?.close(), this);
+
+            Main.uiGroup.add_child(this._menu.actor);
+            this._menuManager.addMenu(this._menu);
+        }
+
+        this._menu._updateFavoriteItem?.();
+        this.emit('menu-state-changed', true);
+
+        this._menu.open(BoxPointer.PopupAnimation.FULL);
+        this.emit('sync-tooltip');
+
+        return false;
     }
 
     _showTooltip() {
@@ -206,6 +274,11 @@ class DockAppIcon extends Dash.DashIcon {
     }
 
     activate(button) {
+        if (button === Clutter.BUTTON_SECONDARY) {
+            this.popupMenu();
+            return;
+        }
+
         this._hideTooltip();
 
         if (this._dock?._appLauncher?.isOpen)
@@ -888,6 +961,7 @@ class ArreraDock extends St.Widget {
     _onMenuStateChanged(opened) {
         if (opened) {
             this._openMenusCount++;
+            this._resetWaveMagnification();
             if (this._autohide)
                 this._showDock();
         } else {
